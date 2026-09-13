@@ -69,3 +69,19 @@ if sys.platform == "win32":
                 _unlink(path)
             except OSError:
                 pass
+
+# The screenshot decoder requires valid image bytes on every platform. The
+# Direct Mode renderer otherwise returns an empty placeholder for mocked
+# screenshots, which is not a semantic test failure and breaks Linux CI.
+if sys.platform != "win32":
+    from gltest.direct import wasi_mock as _linux_wasi
+    _linux_render = _linux_wasi._handle_web_render
+    _linux_png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+
+    def _linux_image_render(vm, data):
+        result = _linux_render(vm, data)
+        if data.get("mode") == "screenshot" and result.get("ok", {}).get("image") == b"":
+            result["ok"]["image"] = _linux_png
+        return result
+
+    _linux_wasi._handle_web_render = _linux_image_render
