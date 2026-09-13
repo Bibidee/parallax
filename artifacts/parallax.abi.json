@@ -1,0 +1,157 @@
+{
+  "ctor": {
+    "params": [],
+    "kwparams": {}
+  },
+  "methods": {
+    "cancel_job": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "create_job": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ],
+        [
+          "worker",
+          "address"
+        ],
+        [
+          "specification",
+          "string"
+        ],
+        [
+          "baseline_url",
+          "string"
+        ],
+        [
+          "baseline_hash",
+          "string"
+        ],
+        [
+          "target_url",
+          "string"
+        ],
+        [
+          "target_hash",
+          "string"
+        ],
+        [
+          "before_image_url",
+          "string"
+        ],
+        [
+          "before_image_hash",
+          "string"
+        ],
+        [
+          "after_image_url",
+          "string"
+        ],
+        [
+          "after_image_hash",
+          "string"
+        ],
+        [
+          "worker_bond",
+          "int"
+        ],
+        [
+          "deadline_at",
+          "int"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": true
+    },
+    "get_info": {
+      "params": [],
+      "kwparams": {},
+      "readonly": true,
+      "ret": "dict"
+    },
+    "get_job": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": true,
+      "ret": "dict"
+    },
+    "review": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "settle": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "submit_evidence": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ],
+        [
+          "report_url",
+          "string"
+        ],
+        [
+          "report_hash",
+          "string"
+        ],
+        [
+          "report_summary",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": true
+    },
+    "withdraw_evidence": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    }
+  }
+}
