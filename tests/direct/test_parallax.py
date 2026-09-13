@@ -1,6 +1,12 @@
 import hashlib
 import json
 from conftest import warp_to
+from gltest.direct import sdk_loader
+
+
+# genlayer-test 0.29.2 otherwise asks for the retired default rc7 artifact.
+# Pin the known-compatible runner used by the current Direct Mode suite.
+sdk_loader.get_latest_version = lambda: "v0.2.12"
 
 
 CONTRACT = "contracts/parallax.py"
