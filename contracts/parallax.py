@@ -328,12 +328,16 @@ def equivalent_analysis(left, right) -> bool:
     left_verdict, right_verdict = derive_verdict(left), derive_verdict(right)
     if left_verdict != right_verdict:
         return False
-    # Approval is safe only when both complete tuples independently approve.
-    # For blocked outcomes, require the same fault class so a punitive worker
-    # settlement can never follow validator disagreement about attribution.
-    if left_verdict == VERDICT_BLOCKED:
-        return left.get("fault_class", FAIL_SEMANTIC) == right.get("fault_class", FAIL_SEMANTIC)
-    return True
+    # Consensus must cover every material semantic fact.  A shared derived
+    # verdict is not enough: validators cannot disagree about which facts the
+    # evidence establishes and still authorize a punitive blocked settlement.
+    fields = ("spec_match", "visual_change", "evidence_support", "evidence_quality", "risk")
+    if any(left.get(field) != right.get(field) for field in fields):
+        return False
+    # Independent models may score confidence differently.  Require the same
+    # deterministic approval-threshold band; this preserves 75+ approval and
+    # prevents a threshold disagreement from becoming consensus.
+    return (strict_confidence(left["confidence"]) >= MIN_CONFIDENCE) == (strict_confidence(right["confidence"]) >= MIN_CONFIDENCE)
 
 
 def retryable(reason: str) -> dict:

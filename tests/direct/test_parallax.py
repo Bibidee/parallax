@@ -115,6 +115,21 @@ def test_review_uses_verified_artifacts_and_approves(direct_vm, direct_deploy, d
     assert job["status"] == "approved" and job["verdict"] == "approved" and job["confidence"] == "90"
 
 
+def test_validator_material_disagreement_is_rejected_without_bond_slash(direct_vm, direct_deploy, direct_alice, direct_bob):
+    contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob); submit(contract, direct_vm, direct_bob)
+    configure(direct_vm, SAFE)
+    direct_vm.sender = direct_alice
+    contract.review("PX-001")
+    # The captured production validator is rerun with changed external data:
+    # approval from the leader versus a materially different blocked result.
+    blocked = dict(SAFE, risk="yes")
+    direct_vm._llm_mocks.clear()
+    direct_vm.mock_llm("PARALLAX-001", json.dumps(blocked))
+    assert direct_vm.run_validator(leader_result={"kind": "analysis", "result": SAFE}) is False
+    job = contract.get_job("PX-001")
+    assert job["status"] == "approved" and job["worker_bond_held"] == str(ONE // 10)
+
+
 def test_approved_settlement_conserves_reward_and_bond(direct_vm, direct_deploy, direct_alice, direct_bob):
     contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob); submit(contract, direct_vm, direct_bob)
     configure(direct_vm, SAFE)

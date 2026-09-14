@@ -54,10 +54,13 @@ def test_approval_requires_complete_safe_tuple():
         assert m.derive_verdict(analysis(**{key: value})) == "blocked"
 
 
-def test_equivalence_ignores_rationale_and_confidence_but_not_decision_facts():
+def test_equivalence_requires_material_semantic_agreement():
     m = load_module()
     assert m.equivalent_analysis(analysis(confidence=75, rationale="one"), analysis(confidence=100, rationale="two"))
-    assert m.equivalent_analysis(analysis(risk="yes"), analysis(spec_match="no", visual_change="unclear", rationale="different reason"))
+    assert m.equivalent_analysis(analysis(confidence=74, rationale="one"), analysis(confidence=1, rationale="two"))
+    assert not m.equivalent_analysis(analysis(risk="yes"), analysis(spec_match="no", visual_change="unclear", rationale="different reason"))
+    assert not m.equivalent_analysis(analysis(visual_change="no"), analysis(evidence_support="no"))
+    assert not m.equivalent_analysis(analysis(confidence=74), analysis(confidence=75))
     assert not m.equivalent_analysis(analysis(), analysis(risk="yes"))
     assert not m.equivalent_analysis(analysis(), {"bad": True})
 
@@ -107,7 +110,7 @@ def test_artifact_fault_classes_are_nonsemantic():
     m = load_module()
     assert m.technical_failure(m.FAIL_SPONSOR_ARTIFACT, "hash_mismatch")["kind"] == "technical"
     assert m.technical_failure(m.FAIL_WORKER_ARTIFACT, "invalid_utf8")["fault_class"] == "worker_artifact"
-    assert m.equivalent_analysis(analysis(risk="yes"), analysis(spec_match="no", rationale="different semantic reason"))
+    assert not m.equivalent_analysis(analysis(risk="yes"), analysis(spec_match="no", rationale="different semantic reason"))
 
 
 def test_settlement_outcome_labels_are_bounded_and_explicit():
