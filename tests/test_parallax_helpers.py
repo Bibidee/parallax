@@ -108,3 +108,17 @@ def test_artifact_fault_classes_are_nonsemantic():
     assert m.technical_failure(m.FAIL_SPONSOR_ARTIFACT, "hash_mismatch")["kind"] == "technical"
     assert m.technical_failure(m.FAIL_WORKER_ARTIFACT, "invalid_utf8")["fault_class"] == "worker_artifact"
     assert m.equivalent_analysis(analysis(risk="yes"), analysis(spec_match="no", rationale="different semantic reason"))
+
+
+def test_settlement_outcome_labels_are_bounded_and_explicit():
+    m = load_module()
+    assert m.settlement_outcome(m.APPROVED) == "approved"
+    assert m.settlement_outcome(m.BLOCKED) == "semantic_blocked"
+    assert m.settlement_outcome(m.RETRYABLE_STATUS) == "retryable_refund"
+    for status in (m.PENDING, m.CANCELLED, m.SETTLED):
+        try:
+            m.settlement_outcome(status)
+        except ValueError:
+            pass
+        else:
+            assert False, status

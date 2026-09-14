@@ -24,5 +24,7 @@ Parallax v0.2.0 is currently **undeployed**. No contract address or live transac
 - `withdraw_evidence` cannot run while evidence is reviewable; it is a timeout recovery path only.
 - Before/after image hashes must differ, and the exact verified raw image bytes are passed to the multimodal model.
 - `MAX_ACTIVE_JOBS` is an active-capacity bound; finalized historical jobs remain readable and do not consume active capacity.
+- Payout recipients should be EOAs or GEN-capable contracts. `emit_transfer` is asynchronous; internal settlement finalization does not guarantee arbitrary recipient acceptance, and Parallax has no secondary recovery path for a rejected child transfer.
+- `JobSettled` outcomes are explicit: `approved`, `semantic_blocked`, `retryable_refund`, `pending_cancel`, `expiry`, and `worker_withdrawal`.
 
 If any gate fails, preserve the failure output, fix the underlying issue, and rerun the entire gate. Never replace a failed check with a skipped test or an aspirational claim.

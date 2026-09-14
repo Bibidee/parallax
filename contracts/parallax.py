@@ -343,6 +343,17 @@ def technical_failure(fault_class: str, reason: str) -> dict:
     return {"kind": "technical", "fault_class": fault_class, "reason": clean(reason)[:MAX_TEXT]}
 
 
+def settlement_outcome(status: str) -> str:
+    """Return the bounded, auditable label for a payout transition."""
+    if status == APPROVED:
+        return "approved"
+    if status == BLOCKED:
+        return "semantic_blocked"
+    if status == RETRYABLE_STATUS:
+        return "retryable_refund"
+    raise ValueError("not a settlement status")
+
+
 def semantic_prompt(snapshot: dict, baseline: str, target: str, report: str) -> str:
     quoted = json.dumps({
         "specification": snapshot["specification"],
@@ -551,6 +562,7 @@ class Parallax(gl.Contract):
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - amount)
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + amount)
         JobCancelled(job.id, job.sponsor).emit()
+        JobSettled(job.id, "pending_cancel", u256(amount), u256(0)).emit()
         payout(job.sponsor, amount)
 
     def _settlement_amounts(self, job: Job):
@@ -570,13 +582,14 @@ class Parallax(gl.Contract):
         job = self._job(job_id)
         sponsor_amount, worker_amount = self._settlement_amounts(job)
         reward, bond = int(job.reward_deposited), int(job.worker_bond_held)
+        outcome = settlement_outcome(job.status)
         job.reward_deposited, job.worker_bond_held, job.status, job.settled_at = u256(0), u256(0), SETTLED, u256(now_timestamp())
         self.active_jobs = u256(int(self.active_jobs) - 1)
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - reward)
         self.total_worker_bonds_held = u256(int(self.total_worker_bonds_held) - bond)
         self.total_paid_to_workers = u256(int(self.total_paid_to_workers) + worker_amount)
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + sponsor_amount)
-        JobSettled(job.id, "worker" if worker_amount else "sponsor", u256(sponsor_amount), u256(worker_amount)).emit()
+        JobSettled(job.id, outcome, u256(sponsor_amount), u256(worker_amount)).emit()
         payout(job.sponsor, sponsor_amount)
         payout(job.worker, worker_amount)
 

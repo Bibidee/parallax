@@ -16,11 +16,13 @@ The model returns a bounded object: `spec_match`, `visual_change`, `evidence_sup
 
 `submitted -> retryable -> approved/blocked/retryable -> settled`
 
-`pending -> cancelled`; `submitted -> retryable`; `retryable -> approved/blocked/retryable`; `submitted/retryable -> settled` through permissionless `expire_job` at or after the deadline or exhausted attempts. Submission and review close at the exact deadline. A sponsor cannot cancel after evidence is bonded. Worker withdrawal is allowed only after a retryable timeout/attempt exhaustion, never while evidence is reviewable. A deadline gives every unresolved job a deterministic sponsor-reward/worker-bond refund route.
+`pending -> cancelled`; `pending -> settled` through permissionless expiry at/after the deadline; `submitted -> approved/blocked/retryable`; `retryable -> approved/blocked/retryable`; `submitted/retryable -> settled` through permissionless `expire_job` at/after the deadline or exhausted attempts. Submission and review close at the exact deadline. A sponsor cannot cancel after evidence is bonded. Worker withdrawal is allowed only after a retryable timeout/attempt exhaustion, never while evidence is reviewable. A deadline gives every unresolved job a deterministic sponsor-reward/worker-bond refund route.
 
 ## Escrow safety
 
 Every settlement reads the stored ledger, checks it is non-zero, sets both held ledgers to zero, saves the state, updates accounting counters, and only then calls the single GEN transfer helper. This ordering prevents replay and double payment. Settlement is permissionless so pause or an absent counterparty cannot strand funds.
+
+`JobSettled` labels are explicit and bounded: `approved`, `semantic_blocked`, `retryable_refund`, `pending_cancel`, `expiry`, and `worker_withdrawal`. The label is selected from the pre-transition state, not inferred from payout direction. Payout addresses should be EOAs or GEN-capable recipients. `emit_transfer` is asynchronous: a finalized internal settlement does not guarantee acceptance by an arbitrary receiving contract, and no secondary recovery mechanism is implemented for a rejected child transfer.
 
 ## Limits and assumptions
 

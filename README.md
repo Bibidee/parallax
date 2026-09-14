@@ -12,6 +12,8 @@ Approval requires the complete safe tuple (`spec_match=yes`, `visual_change=yes`
 
 `create_job` is payable and records the sponsor's reward ledger. `submit_evidence` is payable and requires the exact worker bond from the designated worker. A permitted sponsor or worker calls `review`; validators independently inspect the snapshot. A complete safe tuple (`spec_match=yes`, `visual_change=yes`, `evidence_support=yes`, `evidence_quality=strong|adequate`, `risk=no`, confidence >= 75) becomes `approved`; all other valid semantic outcomes become `blocked`. Technical fetch/model failures become `retryable`.
 
+The normal state paths are `pending -> submitted -> approved|blocked|retryable -> settled`; a sponsor may cancel only `pending` before evidence is bonded. Any unresolved `pending`, `submitted`, or `retryable` job has a permissionless `expire_job` path at/after its deadline (or exhausted attempts), which settles the escrow without approval.
+
 Settlement has a closed set of exits:
 
 - approved: worker receives reward plus bond;
@@ -22,6 +24,10 @@ Settlement has a closed set of exits:
 - worker withdrawal is forbidden while evidence is reviewable and is available only after retryable timeout/attempt exhaustion.
 
 All payout paths zero both ledgers, persist state, update accounting, and only then emit GEN. A second settle/expire/withdraw has no balance to release. `MAX_ACTIVE_JOBS` bounds live storage pressure while finalized records remain auditable; `job_count` is informational, not a lifetime admission cap.
+
+`JobSettled` uses explicit outcomes: `approved`, `semantic_blocked`, `retryable_refund`, `pending_cancel`, `expiry`, and `worker_withdrawal`. These labels describe the state transition and are never inferred from which party happens to receive funds.
+
+Payout recipients should be EOAs or contracts that can receive GEN. Parallax zeroes its escrow ledgers before calling asynchronous `emit_transfer`, but settlement finalization does not guarantee that an arbitrary receiving contract accepts the downstream child transfer. Failed child-transfer behavior follows GenLayer runtime semantics; Parallax has no secondary recovery mechanism for a recipient contract that rejects a transfer.
 
 ## Integration example
 
