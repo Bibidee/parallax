@@ -35,7 +35,7 @@ Another Intelligent Contract can use Parallax as an authorization gate by readin
 
 ## Release gate
 
-This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The frozen v0.2.0 source has been deployed to Studionet and its raw source matches byte-for-byte, but the deployment is not yet smoke-test verified: the first payable `create_job` call finalized with a GenVM `SystemError: 2: inval` at `JobCreated.emit()`, so no job was persisted. No further deployment was attempted.
+This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The historical v0.2.0 source is deployed to Studionet and its raw source matches byte-for-byte, but that address is not final: the first payable `create_job` call finalized with a GenVM `SystemError: 2: inval` at `JobCreated.emit()`, so no job was persisted. This checkout fixes the event topology by limiting every event to at most three indexed fields and moving amounts into event blobs; it requires a fresh deployment after the release gate passes.
 
 ## Studionet deployment evidence
 
@@ -45,6 +45,6 @@ This repository intentionally contains exactly one deployable source: `contracts
 - Frozen source commit: `b7be80e23e593e26db70245a862dde6dd763ce45`
 - Local/deployed SHA-256: `ec96762ab1faa5334261abe0415f5ada37d15d39ceac9adf7b786248d3f86d1f` (31,457 bytes each; parity verified through `gen_getContractCode`)
 - Deployment receipt: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `get_info()` returns Parallax `0.2.0` with zero active jobs and zero held ledgers.
-- Smoke-test transaction: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85). It finalized with `MAJORITY_AGREE`, but GenVM executions errored at `JobCreated.emit()` (`SystemError: 2: inval`); `PARALLAX-SMOKE-001` was not persisted and accounting remained zero. The deployment is therefore **deployed but not smoke-test verified** pending a source/runtime fix.
+- Smoke-test transaction: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85). It finalized with `MAJORITY_AGREE`, but GenVM executions errored at `JobCreated.emit()` (`SystemError: 2: inval`); `PARALLAX-SMOKE-001` was not persisted and accounting remained zero. This is historical evidence for the superseded deployment; the corrected event topology is not present at that address and must be deployed separately.
 
 The official GenLayer development and validator guidance is available at [skills.genlayer.com](https://skills.genlayer.com/).

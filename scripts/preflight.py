@@ -16,8 +16,12 @@ print(f"contract_sha256={hashlib.sha256(source_bytes).hexdigest()}")
 subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"], cwd=ROOT, check=True)
 lint = shutil.which("genvm-lint") or shutil.which("genvm-lint.exe")
 if not lint:
-    sibling = Path(sys.executable).with_name("genvm-lint.exe" if sys.platform == "win32" else "genvm-lint")
-    lint = str(sibling) if sibling.exists() else None
+    executable = "genvm-lint.exe" if sys.platform == "win32" else "genvm-lint"
+    candidates = (
+        Path(sys.executable).with_name(executable),
+        Path(sys.executable).parent / "Scripts" / executable,
+    )
+    lint = next((str(candidate) for candidate in candidates if candidate.exists()), None)
 if not lint:
     raise SystemExit("genvm-lint is required for preflight")
 subprocess.run([lint, "check", str(source), "--json"], cwd=ROOT, check=True)

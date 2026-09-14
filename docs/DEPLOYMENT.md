@@ -1,6 +1,6 @@
 # Deployment
 
-Parallax v0.2.0 is deployed to Studionet, with byte-for-byte source parity verified, but the deployment is **not smoke-test verified**. The first payable `create_job` call finalized with `MAJORITY_AGREE` while all executions failed at `JobCreated.emit()` with `SystemError: 2: inval`; no job state persisted. Do not treat this deployment as production-ready until that runtime incompatibility is fixed in a new audited source.
+Parallax v0.2.0 is deployed to Studionet, with byte-for-byte source parity verified, but the address below is **historical and non-final**. The first payable `create_job` call finalized with `MAJORITY_AGREE` while all executions failed at `JobCreated.emit()` with `SystemError: 2: inval`; no job state persisted. This checkout fixes the event topology: every event now uses no more than three indexed fields, while payout/reward metadata is emitted in the blob. That fix is not present at the historical address; complete the release gate and perform a fresh deployment before treating Parallax as production-ready.
 
 ## Current deployment evidence
 
@@ -10,7 +10,7 @@ Parallax v0.2.0 is deployed to Studionet, with byte-for-byte source parity verif
 - Source SHA-256: `ec96762ab1faa5334261abe0415f5ada37d15d39ceac9adf7b786248d3f86d1f` (31,457 bytes; `gen_getContractCode` parity: YES)
 - Receipt: `FINALIZED`, `MAJORITY_AGREE`, GenVM deployment `SUCCESS`; deployer `0xF7FD246351268835Df39B1E8047fbCc4135E2B47`
 - `get_info()`: version `0.2.0`, `active_jobs=0`, `total_reward_deposited=0`, `total_worker_bonds_held=0`
-- Smoke test: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85), finalized contract error at `JobCreated.emit()` (`SystemError: 2: inval`); no persistent state.
+- Smoke test: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85), finalized contract error at `JobCreated.emit()` (`SystemError: 2: inval`); no persistent state. This failure is retained as historical evidence and is not a result from the corrected source.
 
 ## Release checklist
 
@@ -24,6 +24,10 @@ Parallax v0.2.0 is deployed to Studionet, with byte-for-byte source parity verif
 - [x] `gen_getContractCode` source retrieved and compared byte-for-byte
 - [x] `get_info()` matches version and configuration
 - [ ] live pending → approved/blocked → settled evidence recorded (blocked by the `JobCreated.emit()` runtime error above)
+
+## Fresh deployment required
+
+The historical address is not a valid smoke-tested release because its event declarations exceeded the GenVM topic limit. The corrected source has been validated locally with the bounded event topology, but no replacement deployment has been made in this pass. Deploy only after the new source is frozen and its SHA-256 is recorded; then repeat the payable create/submit/review/settle smoke flow and capture a new parity proof.
 
 ## Economic safety checks
 

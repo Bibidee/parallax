@@ -2,10 +2,11 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """Parallax: hash-bound multimodal milestone escrow for real-world state changes.
 
-Sponsors lock GEN against a committed specification. A designated worker submits
-text and before/after image evidence. GenLayer validators independently fetch
-the exact committed bytes and pass those verified raw image bytes directly to
-the multimodal model. Deterministic state and escrow rules derive the final
+Sponsors lock GEN against a committed specification. The sponsor commits the
+baseline/target text and before/after image artifacts. A designated worker
+submits the completion report and exact bond. GenLayer validators independently
+fetch the exact committed bytes and pass those verified raw image bytes directly
+to the multimodal model. Deterministic state and escrow rules derive the final
 payout; no model text can transfer funds by itself.
 """
 
@@ -98,19 +99,19 @@ class Job:
 
 
 class JobCreated(gl.Event):
-    def __init__(self, job_id: str, sponsor: Address, worker: Address, reward: u256, /, **blob): ...
+    def __init__(self, job_id: str, sponsor: Address, worker: Address, /, **blob): ...
 
 
 class EvidenceSubmitted(gl.Event):
-    def __init__(self, job_id: str, worker: Address, bond: u256, /, **blob): ...
+    def __init__(self, job_id: str, worker: Address, /, **blob): ...
 
 
 class JobReviewed(gl.Event):
-    def __init__(self, job_id: str, verdict: str, confidence: u256, /, **blob): ...
+    def __init__(self, job_id: str, verdict: str, /, **blob): ...
 
 
 class JobSettled(gl.Event):
-    def __init__(self, job_id: str, outcome: str, sponsor_amount: u256, worker_amount: u256, /, **blob): ...
+    def __init__(self, job_id: str, outcome: str, /, **blob): ...
 
 
 class JobCancelled(gl.Event):
@@ -480,7 +481,7 @@ class Parallax(gl.Contract):
         self.job_count = u256(int(self.job_count) + 1)
         self.active_jobs = u256(int(self.active_jobs) + 1)
         self.total_reward_deposited = u256(int(self.total_reward_deposited) + int(gl.message.value))
-        JobCreated(job_id, self._sender(), worker, gl.message.value).emit()
+        JobCreated(job_id, self._sender(), worker, reward=gl.message.value).emit()
 
     @gl.public.write.payable
     def submit_evidence(self, job_id: str, report_url: str, report_hash: str, report_summary: str) -> None:
@@ -498,7 +499,7 @@ class Parallax(gl.Contract):
         job.report_url, job.report_hash, job.report_summary = report_url, report_hash, report_summary
         job.worker_bond_held, job.status, job.submitted_at = gl.message.value, SUBMITTED, u256(now_timestamp())
         self.total_worker_bonds_held = u256(int(self.total_worker_bonds_held) + int(gl.message.value))
-        EvidenceSubmitted(job.id, self._sender(), gl.message.value).emit()
+        EvidenceSubmitted(job.id, self._sender(), bond=gl.message.value).emit()
 
     @gl.public.write
     def review(self, job_id: str) -> None:
@@ -545,7 +546,7 @@ class Parallax(gl.Contract):
             job.reviewed_at = u256(now_timestamp())
         else:
             raise gl.vm.UserError(f"{RETRYABLE} Invalid consensus result")
-        JobReviewed(job.id, job.verdict, job.confidence).emit()
+        JobReviewed(job.id, job.verdict, confidence=job.confidence).emit()
 
     @gl.public.write
     def cancel_job(self, job_id: str) -> None:
@@ -562,7 +563,7 @@ class Parallax(gl.Contract):
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - amount)
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + amount)
         JobCancelled(job.id, job.sponsor).emit()
-        JobSettled(job.id, "pending_cancel", u256(amount), u256(0)).emit()
+        JobSettled(job.id, "pending_cancel", sponsor_amount=u256(amount), worker_amount=u256(0)).emit()
         payout(job.sponsor, amount)
 
     def _settlement_amounts(self, job: Job):
@@ -589,7 +590,7 @@ class Parallax(gl.Contract):
         self.total_worker_bonds_held = u256(int(self.total_worker_bonds_held) - bond)
         self.total_paid_to_workers = u256(int(self.total_paid_to_workers) + worker_amount)
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + sponsor_amount)
-        JobSettled(job.id, outcome, u256(sponsor_amount), u256(worker_amount)).emit()
+        JobSettled(job.id, outcome, sponsor_amount=u256(sponsor_amount), worker_amount=u256(worker_amount)).emit()
         payout(job.sponsor, sponsor_amount)
         payout(job.worker, worker_amount)
 
@@ -608,7 +609,7 @@ class Parallax(gl.Contract):
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - reward)
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + reward)
         self.total_paid_to_workers = u256(int(self.total_paid_to_workers) + bond)
-        JobSettled(job.id, "worker_withdrawal", u256(reward), u256(bond)).emit()
+        JobSettled(job.id, "worker_withdrawal", sponsor_amount=u256(reward), worker_amount=u256(bond)).emit()
         payout(job.sponsor, reward)
         payout(job.worker, bond)
 
@@ -631,7 +632,7 @@ class Parallax(gl.Contract):
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + reward)
         self.total_paid_to_workers = u256(int(self.total_paid_to_workers) + bond)
         JobExpired(job.id).emit()
-        JobSettled(job.id, "expiry", u256(reward), u256(bond)).emit()
+        JobSettled(job.id, "expiry", sponsor_amount=u256(reward), worker_amount=u256(bond)).emit()
         payout(job.sponsor, reward)
         payout(job.worker, bond)
 
