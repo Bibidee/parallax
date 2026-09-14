@@ -35,9 +35,9 @@ Another Intelligent Contract can use Parallax as an authorization gate by readin
 
 ## Release gate
 
-This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The historical v0.2.0 source is deployed to Studionet and its raw source matches byte-for-byte, but that address is not final: the first payable `create_job` call finalized with a GenVM `SystemError: 2: inval` at `JobCreated.emit()`, so no job was persisted. This checkout fixes the event topology by limiting every event to at most three indexed fields and moving amounts into event blobs; it requires a fresh deployment after the release gate passes.
+This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The corrected v0.2.0 source is now deployed to Studionet with byte-for-byte parity and a successful payable create/cancel smoke path. The earlier deployment remains historical evidence of the event-topic incompatibility.
 
-## Studionet deployment evidence
+## Historical Studionet deployment evidence
 
 - Contract: [`0xB5a6a8F4161CC77D24ffe2cD044B95aD41c9fb2D`](https://explorer-studio.genlayer.com/address/0xB5a6a8F4161CC77D24ffe2cD044B95aD41c9fb2D)
 - Deployment transaction: [`0x535f764500aa5b0f1b86ac08d30e011874ab32979c4b931a213d880e0301a20e`](https://explorer-studio.genlayer.com/tx/0x535f764500aa5b0f1b86ac08d30e011874ab32979c4b931a213d880e0301a20e)
@@ -45,6 +45,18 @@ This repository intentionally contains exactly one deployable source: `contracts
 - Frozen source commit: `b7be80e23e593e26db70245a862dde6dd763ce45`
 - Local/deployed SHA-256: `ec96762ab1faa5334261abe0415f5ada37d15d39ceac9adf7b786248d3f86d1f` (31,457 bytes each; parity verified through `gen_getContractCode`)
 - Deployment receipt: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `get_info()` returns Parallax `0.2.0` with zero active jobs and zero held ledgers.
-- Smoke-test transaction: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85). It finalized with `MAJORITY_AGREE`, but GenVM executions errored at `JobCreated.emit()` (`SystemError: 2: inval`); `PARALLAX-SMOKE-001` was not persisted and accounting remained zero. This is historical evidence for the superseded deployment; the corrected event topology is not present at that address and must be deployed separately.
+- Smoke-test transaction: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85). It finalized with `MAJORITY_AGREE`, but GenVM executions errored at `JobCreated.emit()` (`SystemError: 2: inval`); `PARALLAX-SMOKE-001` was not persisted and accounting remained zero. This is retained solely as historical evidence for the superseded deployment.
+
+## Corrected Studionet deployment
+
+- Contract: [`0x27CdC3c266F9b8402Ac4723AA0c1A28D77C7B8a9`](https://explorer-studio.genlayer.com/address/0x27CdC3c266F9b8402Ac4723AA0c1A28D77C7B8a9)
+- Deployment transaction: [`0x267e6479907a5066c1e49da30dee2f9a7655d08b93775962042f78c4561d8481`](https://explorer-studio.genlayer.com/tx/0x267e6479907a5066c1e49da30dee2f9a7655d08b93775962042f78c4561d8481)
+- Network: GenLayer Studionet (`https://studio.genlayer.com/api`); deployer `0xF7FD246351268835Df39B1e8047fbCc4135E2B47`
+- Frozen commit: `8e200e2ab1d300090e5c048b4d13121ccd343d98`; source SHA-256 `08a3a39f38d95949edff045905efa56d9e7332605881dd48969c6c1ead26dbc9` (31,588 bytes)
+- Deployment: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `gen_getContractCode` parity is byte-for-byte verified.
+- Initial `get_info()`: version `0.2.0`, `active_jobs=0`, `total_reward_deposited=0`, `total_worker_bonds_held=0`.
+- Event smoke create: [`0xe296422fa9d45ce2a8a4e18c027238dd999e84a8986b6a5c529b18dd6e9f68fa`](https://explorer-studio.genlayer.com/tx/0xe296422fa9d45ce2a8a4e18c027238dd999e84a8986b6a5c529b18dd6e9f68fa), `FINALIZED`/`MAJORITY_AGREE`/GenVM `SUCCESS`; `PARALLAX-EVENT-SMOKE-002` persisted as `pending` with reward `1000000000000` wei and no event serialization error.
+- Pending cancellation: [`0x5b441d0a43741dcc14cf01ea02bcb9333669acf8f5304c38ea4fcedd101dcb42`](https://explorer-studio.genlayer.com/tx/0x5b441d0a43741dcc14cf01ea02bcb9333669acf8f5304c38ea4fcedd101dcb42), `FINALIZED`/`MAJORITY_AGREE`/GenVM `SUCCESS`; status `cancelled`, reward ledger `0`, and `active_jobs=0`.
+- Final `get_info()`: `job_count=1`, `active_jobs=0`, `total_reward_deposited=0`, `total_worker_bonds_held=0`, `total_refunded_to_sponsors=1000000000000`. The Explorer receipt exposes a successful non-removed EVM log, while symbolic event names/blob fields are not surfaced by the available receipt view.
 
 The official GenLayer development and validator guidance is available at [skills.genlayer.com](https://skills.genlayer.com/).

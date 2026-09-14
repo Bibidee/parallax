@@ -1,6 +1,30 @@
 # Deployment
 
-Parallax v0.2.0 is deployed to Studionet, with byte-for-byte source parity verified, but the address below is **historical and non-final**. The first payable `create_job` call finalized with `MAJORITY_AGREE` while all executions failed at `JobCreated.emit()` with `SystemError: 2: inval`; no job state persisted. This checkout fixes the event topology: every event now uses no more than three indexed fields, while payout/reward metadata is emitted in the blob. That fix is not present at the historical address; complete the release gate and perform a fresh deployment before treating Parallax as production-ready.
+## Corrected v0.2.0 deployment (current)
+
+The bounded-event source is deployed and smoke-tested on Studionet. Every
+deployment and smoke transaction below finalized with `MAJORITY_AGREE` and
+GenVM `SUCCESS`.
+
+- Contract: [`0x27CdC3c266F9b8402Ac4723AA0c1A28D77C7B8a9`](https://explorer-studio.genlayer.com/address/0x27CdC3c266F9b8402Ac4723AA0c1A28D77C7B8a9)
+- Deployment transaction: [`0x267e6479907a5066c1e49da30dee2f9a7655d08b93775962042f78c4561d8481`](https://explorer-studio.genlayer.com/tx/0x267e6479907a5066c1e49da30dee2f9a7655d08b93775962042f78c4561d8481)
+- Network/RPC: GenLayer Studionet (`https://studio.genlayer.com/api`)
+- Deployer: `0xF7FD246351268835Df39B1E8047fbCc4135E2B47`
+- Source commit: `8e200e2ab1d300090e5c048b4d13121ccd343d98`
+- Source SHA-256: `08a3a39f38d95949edff045905efa56d9e7332605881dd48969c6c1ead26dbc9` (31,588 bytes)
+- Source parity: `gen_getContractCode` decoded bytes match the repository byte-for-byte (`YES`)
+- Initial `get_info()`: version `0.2.0`; `active_jobs=0`; `total_reward_deposited=0`; `total_worker_bonds_held=0`
+- Event smoke create: [`0xe296422fa9d45ce2a8a4e18c027238dd999e84a8986b6a5c529b18dd6e9f68fa`](https://explorer-studio.genlayer.com/tx/0xe296422fa9d45ce2a8a4e18c027238dd999e84a8986b6a5c529b18dd6e9f68fa). `PARALLAX-EVENT-SMOKE-002` was created successfully as `pending` with reward `1000000000000` wei; no `JobCreated` serialization error occurred.
+- Cancellation: [`0x5b441d0a43741dcc14cf01ea02bcb9333669acf8f5304c38ea4fcedd101dcb42`](https://explorer-studio.genlayer.com/tx/0x5b441d0a43741dcc14cf01ea02bcb9333669acf8f5304c38ea4fcedd101dcb42). The job became `cancelled`, reward ledger returned to `0`, and no `JobSettled` serialization error occurred.
+- Final `get_info()`: `job_count=1`, `active_jobs=0`, `total_reward_deposited=0`, `total_worker_bonds_held=0`, `total_refunded_to_sponsors=1000000000000`.
+- The available EVM receipt view exposes a successful non-removed log but does not decode symbolic event names/blob fields; runtime success is the live event-path confirmation.
+
+## Historical superseded deployment
+
+Parallax v0.2.0 was previously deployed to Studionet at the address below. Its
+source parity remains valid, but it is superseded and non-final because the
+event topology caused the first payable call to fail at runtime. Do not reuse
+this address for current evidence.
 
 ## Current deployment evidence
 
@@ -14,20 +38,20 @@ Parallax v0.2.0 is deployed to Studionet, with byte-for-byte source parity verif
 
 ## Release checklist
 
-- [ ] exactly one deployable file under `contracts/`
-- [ ] `python scripts/preflight.py`
-- [ ] `python -m pytest tests -q`
-- [ ] `genvm-lint check contracts/parallax.py --json`
-- [ ] `genvm-lint schema contracts/parallax.py --output artifacts/parallax.abi.json`
-- [ ] source SHA-256 recorded before deployment
+- [x] exactly one deployable file under `contracts/`
+- [x] `python scripts/preflight.py`
+- [x] `python -m pytest tests -q` (24 passed)
+- [x] `genvm-lint check contracts/parallax.py --json`
+- [x] `genvm-lint schema contracts/parallax.py --output artifacts/parallax.abi.json`
+- [x] source SHA-256 recorded before deployment
 - [x] Studionet deployment FINALIZED with GenVM SUCCESS
 - [x] `gen_getContractCode` source retrieved and compared byte-for-byte
 - [x] `get_info()` matches version and configuration
-- [ ] live pending → approved/blocked → settled evidence recorded (blocked by the `JobCreated.emit()` runtime error above)
+- [x] live pending → cancelled smoke evidence recorded on the corrected deployment
 
-## Fresh deployment required
-
-The historical address is not a valid smoke-tested release because its event declarations exceeded the GenVM topic limit. The corrected source has been validated locally with the bounded event topology, but no replacement deployment has been made in this pass. Deploy only after the new source is frozen and its SHA-256 is recorded; then repeat the payable create/submit/review/settle smoke flow and capture a new parity proof.
+The corrected deployment above is the current release candidate. A broader
+multimodal review/settlement flow remains optional evidence; the required
+event-topology create/cancel smoke path is finalized and successful.
 
 ## Economic safety checks
 
