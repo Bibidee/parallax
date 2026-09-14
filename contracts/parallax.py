@@ -176,6 +176,8 @@ def blocked_host(host: str) -> bool:
     if "." not in host:
         return True
     numeric_parts = host.split(".")
+    if any(part.lower().startswith(("0x", "0o")) for part in numeric_parts):
+        return True
     if all(part.isdigit() for part in numeric_parts):
         # Reject alternate dotted IPv4 spellings (leading zeros, wrong part
         # count, or out-of-range octets) instead of allowing DNS ambiguity.
@@ -360,7 +362,9 @@ def observe(snapshot: dict) -> dict:
         target = fetch_text_verified(snapshot["target_url"], snapshot["target_hash"], FAIL_SPONSOR_ARTIFACT)
         report = fetch_text_verified(snapshot["report_url"], snapshot["report_hash"], FAIL_WORKER_ARTIFACT)
         before = fetch_raw_verified(snapshot["before_image_url"], snapshot["before_image_hash"], FAIL_SPONSOR_ARTIFACT, MAX_IMAGE_ARTIFACT_BYTES)
-        after = fetch_raw_verified(snapshot["after_image_url"], snapshot["after_image_hash"], FAIL_WORKER_ARTIFACT, MAX_IMAGE_ARTIFACT_BYTES)
+        # Both before/after image commitments are supplied by the sponsor in
+        # create_job; worker ownership begins with the report submission.
+        after = fetch_raw_verified(snapshot["after_image_url"], snapshot["after_image_hash"], FAIL_SPONSOR_ARTIFACT, MAX_IMAGE_ARTIFACT_BYTES)
     except ArtifactFailure as exc:
         return technical_failure(exc.fault_class, exc.reason)
     except Exception:
@@ -597,9 +601,9 @@ class Parallax(gl.Contract):
 
     @gl.public.write
     def expire_job(self, job_id: str) -> None:
-        """Permissionless refund for unresolved submitted/retryable jobs."""
+        """Permissionless refund for unresolved jobs at/after their deadline."""
         job = self._job(job_id)
-        if job.status not in (SUBMITTED, RETRYABLE_STATUS):
+        if job.status not in (PENDING, SUBMITTED, RETRYABLE_STATUS):
             raise gl.vm.UserError(f"{EXPECTED} Job is not expirable")
         if now_timestamp() < int(job.deadline_at) and int(job.review_attempts) < MAX_REVIEW_ATTEMPTS:
             raise gl.vm.UserError(f"{EXPECTED} Job deadline not reached")
@@ -607,7 +611,7 @@ class Parallax(gl.Contract):
         if reward <= 0 and bond <= 0:
             raise gl.vm.UserError(f"{EXPECTED} Escrow already settled")
         job.reward_deposited, job.worker_bond_held = u256(0), u256(0)
-        job.status, job.verdict, job.settled_at = SETTLED, VERDICT_RETRYABLE, u256(now_timestamp())
+        job.status, job.verdict, job.failure_class, job.failure_reason, job.settled_at = SETTLED, VERDICT_RETRYABLE, FAIL_INFRASTRUCTURE, "expired_unresolved_job", u256(now_timestamp())
         self.active_jobs = u256(int(self.active_jobs) - 1)
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - reward)
         self.total_worker_bonds_held = u256(int(self.total_worker_bonds_held) - bond)

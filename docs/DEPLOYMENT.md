@@ -18,6 +18,7 @@ Parallax v0.2.0 is currently **undeployed**. No contract address or live transac
 ## Economic safety checks
 
 - Sponsor artifact, worker artifact, HTTP, and model failures are retryable and non-punitive.
+- `create_job` supplies both image commitments; `submit_evidence` supplies the worker report, so image failures are sponsor-artifact failures.
 - Only a substantive semantic `blocked` result transfers the worker bond to the sponsor.
 - `expire_job` is permissionless after the deadline or exhausted review attempts and refunds both owners.
 - `withdraw_evidence` cannot run while evidence is reviewable; it is a timeout recovery path only.

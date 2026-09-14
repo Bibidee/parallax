@@ -29,3 +29,5 @@ The contract supports textual artifacts and image URLs whose raw bytes can be fe
 ## Economic fault classes
 
 Substantive semantic rejection is the only punitive outcome: `blocked` settles reward and worker bond to the sponsor. Sponsor-provided artifact errors, worker-provided artifact integrity errors, HTTP/network failures, and model execution failures are recorded as retryable; expiry or retry exhaustion refunds the sponsor reward and worker bond to the worker. This prevents infrastructure controlled by the sponsor from silently slashing a worker. Every terminal path zeros both escrow ledgers before transfer and updates aggregate counters.
+
+In the current API, `create_job` supplies baseline, target, before-image, and after-image commitments; `submit_evidence` supplies the worker report. Consequently, both image failures are classified as sponsor-artifact failures, while report failures are worker-artifact failures. Neither class is punitive by itself.

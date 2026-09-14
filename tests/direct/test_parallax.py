@@ -115,6 +115,18 @@ def test_review_uses_verified_artifacts_and_approves(direct_vm, direct_deploy, d
     assert job["status"] == "approved" and job["verdict"] == "approved" and job["confidence"] == "90"
 
 
+def test_approved_settlement_conserves_reward_and_bond(direct_vm, direct_deploy, direct_alice, direct_bob):
+    contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob); submit(contract, direct_vm, direct_bob)
+    configure(direct_vm, SAFE)
+    direct_vm.sender = direct_alice; contract.review("PX-001"); contract.settle("PX-001")
+    job, info = contract.get_job("PX-001"), contract.get_info()
+    assert job["status"] == "settled" and job["reward_deposited"] == "0" and job["worker_bond_held"] == "0"
+    assert info["total_reward_deposited"] == "0" and info["total_worker_bonds_held"] == "0"
+    assert info["total_paid_to_workers"] == str(2 * ONE + ONE // 10) and info["total_refunded_to_sponsors"] == "0"
+    assert info["active_jobs"] == "0"
+    with direct_vm.expect_revert(): contract.settle("PX-001")
+
+
 def test_semantic_rejection_is_blocked_and_settlement_is_one_time(direct_vm, direct_deploy, direct_alice, direct_bob):
     contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob); submit(contract, direct_vm, direct_bob)
     configure(direct_vm, dict(SAFE, risk="yes", confidence=90))
@@ -122,6 +134,9 @@ def test_semantic_rejection_is_blocked_and_settlement_is_one_time(direct_vm, dir
     assert contract.get_job("PX-001")["status"] == "blocked"
     contract.settle("PX-001")
     assert contract.get_job("PX-001")["status"] == "settled"
+    info = contract.get_info()
+    assert info["total_reward_deposited"] == "0" and info["total_worker_bonds_held"] == "0"
+    assert info["total_refunded_to_sponsors"] == str(2 * ONE + ONE // 10) and info["active_jobs"] == "0"
     with direct_vm.expect_revert(): contract.settle("PX-001")
 
 
@@ -129,6 +144,7 @@ def test_cancel_pending_refunds_and_cannot_repeat(direct_vm, direct_deploy, dire
     contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob)
     direct_vm.sender = direct_alice; contract.cancel_job("PX-001")
     assert contract.get_job("PX-001")["status"] == "cancelled"
+    assert contract.get_info()["active_jobs"] == "0" and contract.get_info()["total_reward_deposited"] == "0"
     with direct_vm.expect_revert(): contract.cancel_job("PX-001")
 
 
@@ -142,6 +158,9 @@ def test_withdrawal_returns_worker_bond(direct_vm, direct_deploy, direct_alice, 
     direct_vm.sender = direct_bob; contract.withdraw_evidence("PX-001")
     job = contract.get_job("PX-001")
     assert job["status"] == "cancelled" and job["worker_bond_held"] == "0"
+    info = contract.get_info()
+    assert info["active_jobs"] == "0" and info["total_reward_deposited"] == "0"
+    assert info["total_worker_bonds_held"] == "0" and info["total_paid_to_workers"] == str(ONE // 10)
 
 
 def test_artifact_mismatch_fails_closed(direct_vm, direct_deploy, direct_alice, direct_bob):
@@ -166,6 +185,9 @@ def test_permissionless_expiry_refunds_both_and_is_one_time(direct_vm, direct_de
     contract.expire_job("PX-001")
     job = contract.get_job("PX-001")
     assert job["status"] == "settled" and job["reward_deposited"] == "0" and job["worker_bond_held"] == "0"
+    info = contract.get_info()
+    assert info["total_reward_deposited"] == "0" and info["total_worker_bonds_held"] == "0"
+    assert info["total_refunded_to_sponsors"] == str(2 * ONE) and info["total_paid_to_workers"] == str(ONE // 10)
     with direct_vm.expect_revert(): contract.expire_job("PX-001")
 
 
@@ -186,6 +208,36 @@ def test_finalized_jobs_release_active_capacity(direct_vm, direct_deploy, direct
         module.MAX_ACTIVE_JOBS = original_limit
 
 
+def test_pending_expiry_refunds_sponsor_and_releases_capacity(direct_vm, direct_deploy, direct_alice, direct_bob):
+    contract = deploy(direct_deploy, direct_vm)
+    create(contract, direct_vm, direct_alice, direct_bob)
+    warp_to(direct_vm, "2026-08-19T07:59:59Z")
+    with direct_vm.expect_revert():
+        contract.expire_job("PX-001")
+    warp_to(direct_vm, "2026-08-19T08:00:00Z")
+    direct_vm.sender = direct_bob
+    contract.expire_job("PX-001")
+    job = contract.get_job("PX-001")
+    assert job["status"] == "settled" and job["reward_deposited"] == "0" and job["worker_bond_held"] == "0"
+    info = contract.get_info()
+    assert info["active_jobs"] == "0" and info["total_reward_deposited"] == "0"
+    assert info["total_worker_bonds_held"] == "0" and info["total_refunded_to_sponsors"] == str(2 * ONE)
+    with direct_vm.expect_revert():
+        contract.expire_job("PX-001")
+
+
+def test_after_image_failure_is_attributed_to_sponsor(direct_vm, direct_deploy, direct_alice, direct_bob):
+    contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob); submit(contract, direct_vm, direct_bob)
+    direct_vm._web_mocks.clear()
+    direct_vm.mock_web(BASELINE_URL, {"status": 200, "body": BASELINE})
+    direct_vm.mock_web(TARGET_URL, {"status": 200, "body": TARGET})
+    direct_vm.mock_web(REPORT_URL, {"status": 200, "body": REPORT})
+    direct_vm.mock_web(BEFORE_URL, {"status": 200, "body": BEFORE_IMAGE})
+    direct_vm.mock_web(AFTER_URL, {"status": 200, "body": b"different image"})
+    direct_vm.sender = direct_alice; contract.review("PX-001")
+    assert contract.get_job("PX-001")["failure_class"] == "sponsor_artifact"
+
+
 def test_sponsor_artifact_failure_never_slashes_worker_bond(direct_vm, direct_deploy, direct_alice, direct_bob):
     contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob); submit(contract, direct_vm, direct_bob)
     direct_vm.mock_web(BASELINE_URL, {"status": 503, "body": b""})
@@ -195,18 +247,20 @@ def test_sponsor_artifact_failure_never_slashes_worker_bond(direct_vm, direct_de
     assert contract.get_job("PX-001")["status"] == "settled"
     info = contract.get_info()
     assert info["total_paid_to_workers"] == str(ONE // 10)
+    assert info["total_refunded_to_sponsors"] == str(2 * ONE) and info["active_jobs"] == "0"
 
 
 def test_worker_artifact_failure_is_retryable_and_refunded(direct_vm, direct_deploy, direct_alice, direct_bob):
-    contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob)
-    bad_report = b"\xff\xfe"
-    direct_vm.sender, direct_vm.value = direct_bob, ONE // 10
-    contract.submit_evidence("PX-001", REPORT_URL, digest(bad_report), "report")
-    direct_vm.value = 0
-    direct_vm.mock_web(REPORT_URL, {"status": 200, "body": bad_report})
+    contract = deploy(direct_deploy, direct_vm); create(contract, direct_vm, direct_alice, direct_bob); submit(contract, direct_vm, direct_bob)
+    direct_vm._web_mocks.clear()
+    direct_vm.mock_web(BASELINE_URL, {"status": 200, "body": BASELINE})
+    direct_vm.mock_web(TARGET_URL, {"status": 200, "body": TARGET})
+    direct_vm.mock_web(REPORT_URL, {"status": 200, "body": b"changed report"})
+    direct_vm.mock_web(BEFORE_URL, {"status": 200, "body": BEFORE_IMAGE})
+    direct_vm.mock_web(AFTER_URL, {"status": 200, "body": AFTER_IMAGE})
     direct_vm.sender = direct_alice; contract.review("PX-001")
     job = contract.get_job("PX-001")
-    assert job["status"] == "retryable" and job["failure_class"] in ("worker_artifact", "infrastructure")
+    assert job["status"] == "retryable" and job["failure_class"] == "worker_artifact"
     warp_to(direct_vm, "2026-08-19T08:00:00Z")
     contract.expire_job("PX-001")
     assert contract.get_job("PX-001")["status"] == "settled"

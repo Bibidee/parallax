@@ -74,7 +74,7 @@ def test_normalized_hash_and_url_guards():
         else:
             assert False
     assert m.valid_url("https://public.example/item", "url")
-    for bad in ("http://public.example", "https://localhost/x", "https://127.0.0.1/x", "https://10.0.0.1/x", "https://172.016.0.1/x", "https://2130706433/x", "https://[::1]/x", "https://[fc00::1]/x", "https://user@public.example/x", "https://public.example\\@127.0.0.1/x"):
+    for bad in ("http://public.example", "https://localhost/x", "https://127.0.0.1/x", "https://10.0.0.1/x", "https://172.016.0.1/x", "https://0x7f.0.0.1/x", "https://0x7f.1/x", "https://127.1/x", "https://2130706433/x", "https://0x7f000001/x", "https://[::1]/x", "https://[fc00::1]/x", "https://[fe80::1]/x", "https://user@public.example/x", "https://public.example\\@127.0.0.1/x"):
         try:
             m.valid_url(bad, "url")
         except Exception:

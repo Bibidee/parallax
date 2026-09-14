@@ -25,7 +25,7 @@ def _reset_contract_registry():
         import genlayer.gl.genvm_contracts as contracts
     except ImportError:
         return
-        contracts.__known_contract__ = None
+    contracts.__known_contract__ = None
 
 
 # Direct Mode keeps stdin backed by a temporary file on Windows. The runner

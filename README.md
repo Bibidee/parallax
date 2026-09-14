@@ -6,7 +6,7 @@ Parallax is a standalone GenLayer Intelligent Contract primitive for multimodal 
 
 Ordinary contracts can hold GEN and compare hashes, but cannot independently interpret whether photographs show the requested change or whether a report supports a specification. `run_nondet_unsafe` lets multiple validators perform the observation themselves. Deterministic code derives the authorization outcome, enforces the designated worker, and settles escrow exactly once. Artifacts are hostile quoted data: embedded instructions are never followed.
 
-Approval requires the complete safe tuple (`spec_match=yes`, `visual_change=yes`, `evidence_support=yes`, `evidence_quality=strong|adequate`, `risk=no`, confidence >= 75) from consensus. Semantic rejection is `blocked`; artifact, network, or model failures are non-punitive `retryable` outcomes. Malformed output never approves.
+Approval requires the complete safe tuple (`spec_match=yes`, `visual_change=yes`, `evidence_support=yes`, `evidence_quality=strong|adequate`, `risk=no`, confidence >= 75) from consensus. Semantic rejection is `blocked`; artifact, network, or model failures are non-punitive `retryable` outcomes. Both before and after image commitments are sponsor-provided; the worker owns only the submitted report. Malformed output never approves.
 
 ## Lifecycle
 

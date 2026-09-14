@@ -1,5 +1,6 @@
 from pathlib import Path
 import ast
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -9,7 +10,9 @@ sources = list((ROOT / "contracts").glob("*.py"))
 if len(sources) != 1:
     raise SystemExit(f"expected exactly one deployable source, found {len(sources)}")
 source = sources[0]
-ast.parse(source.read_text(encoding="utf-8"))
+source_bytes = source.read_bytes()
+ast.parse(source_bytes.decode("utf-8"))
+print(f"contract_sha256={hashlib.sha256(source_bytes).hexdigest()}")
 subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"], cwd=ROOT, check=True)
 lint = shutil.which("genvm-lint") or shutil.which("genvm-lint.exe")
 if not lint:
