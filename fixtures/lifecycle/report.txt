@@ -1,0 +1,7 @@
+The requested Parallax Demo milestone was completed.
+
+The release label was changed from PARALLAX DEMO v1 to PARALLAX DEMO v2.
+
+The dashboard status was changed from PENDING to COMPLETE.
+
+The after image shows the completed state.
