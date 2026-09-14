@@ -35,6 +35,16 @@ Another Intelligent Contract can use Parallax as an authorization gate by readin
 
 ## Release gate
 
-This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The current package is undeployed; deployment evidence will be added only after a frozen source, finalized Studionet receipt, and byte-for-byte source retrieval are available.
+This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The frozen v0.2.0 source has been deployed to Studionet and its raw source matches byte-for-byte, but the deployment is not yet smoke-test verified: the first payable `create_job` call finalized with a GenVM `SystemError: 2: inval` at `JobCreated.emit()`, so no job was persisted. No further deployment was attempted.
+
+## Studionet deployment evidence
+
+- Contract: [`0xB5a6a8F4161CC77D24ffe2cD044B95aD41c9fb2D`](https://explorer-studio.genlayer.com/address/0xB5a6a8F4161CC77D24ffe2cD044B95aD41c9fb2D)
+- Deployment transaction: [`0x535f764500aa5b0f1b86ac08d30e011874ab32979c4b931a213d880e0301a20e`](https://explorer-studio.genlayer.com/tx/0x535f764500aa5b0f1b86ac08d30e011874ab32979c4b931a213d880e0301a20e)
+- Network: GenLayer Studionet (`https://studio.genlayer.com/api`); deployer `0xF7FD246351268835Df39B1e8047fbCc4135E2B47`
+- Frozen source commit: `b7be80e23e593e26db70245a862dde6dd763ce45`
+- Local/deployed SHA-256: `ec96762ab1faa5334261abe0415f5ada37d15d39ceac9adf7b786248d3f86d1f` (31,457 bytes each; parity verified through `gen_getContractCode`)
+- Deployment receipt: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `get_info()` returns Parallax `0.2.0` with zero active jobs and zero held ledgers.
+- Smoke-test transaction: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85). It finalized with `MAJORITY_AGREE`, but GenVM executions errored at `JobCreated.emit()` (`SystemError: 2: inval`); `PARALLAX-SMOKE-001` was not persisted and accounting remained zero. The deployment is therefore **deployed but not smoke-test verified** pending a source/runtime fix.
 
 The official GenLayer development and validator guidance is available at [skills.genlayer.com](https://skills.genlayer.com/).
