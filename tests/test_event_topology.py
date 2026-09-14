@@ -59,4 +59,4 @@ def test_every_event_uses_at_most_three_indexed_fields_and_explicit_blobs():
         assert emits[name], f"{name} must be emitted"
         for positional_count, keyword_names in emits[name]:
             assert positional_count <= 3, f"{name} exceeds GenVM's three indexed topic limit"
-            assert expected_kwargs.issubset(keyword_names), f"{name} payout metadata must be emitted in the blob"
+            assert keyword_names == expected_kwargs, f"{name} must use the audited blob topology"
