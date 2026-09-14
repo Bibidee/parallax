@@ -59,4 +59,17 @@ This repository intentionally contains exactly one deployable source: `contracts
 - Pending cancellation: [`0x5b441d0a43741dcc14cf01ea02bcb9333669acf8f5304c38ea4fcedd101dcb42`](https://explorer-studio.genlayer.com/tx/0x5b441d0a43741dcc14cf01ea02bcb9333669acf8f5304c38ea4fcedd101dcb42), `FINALIZED`/`MAJORITY_AGREE`/GenVM `SUCCESS`; status `cancelled`, reward ledger `0`, and `active_jobs=0`.
 - Final `get_info()`: `job_count=1`, `active_jobs=0`, `total_reward_deposited=0`, `total_worker_bonds_held=0`, `total_refunded_to_sponsors=1000000000000`. The Explorer receipt exposes a successful non-removed EVM log, while symbolic event names/blob fields are not surfaced by the available receipt view.
 
+### Full Studionet judgment lifecycle
+
+The corrected deployment also completed a real multimodal escrow lifecycle (distinct from the pending/cancel event smoke test):
+
+- Job `PARALLAX-FULL-LIFECYCLE-1789370871455`; sponsor `0xF7FD246351268835Df39B1e8047fbCc4135E2B47`; worker/designated payout recipient `0xaE82EFfe54dCcfd170d9a08EeE128339A70347f7`.
+- Specification: approve only when verified evidence shows the dashboard changed from `PARALLAX DEMO v1`/`PENDING` to `PARALLAX DEMO v2`/`COMPLETE`.
+- Reward and worker bond: `1000000000000` wei each; deadline `1789385271`.
+- Immutable artifacts (raw-byte SHA-256): baseline `0x6452b1ee3499903c4bd839abbed23eec8c513b65a3d0d4853803b0047945db58`; target `0x0bb5e06101ce4c5b04bbc0e0efbe4abb47619122d11dd2ea27cfdc5ee699c305`; before image `0xe47c8a5350f2f0cc3c694f97fe434c73246244092761912c878fc45a7b4184a5`; after image `0x01068fe46b24e05f1955e5f207345e9b8340cbf77743bfc1bfa8ef1b6a577176`; report `0xff63e273e01241c834d3bb1d7e8dcc557d1f7be21827f9b8f49fdaebeabf75b6`.
+- `create_job`: [`0xeb2e4b5ea91722adf3db01319de6d42a0e11201136329d969d2345a0b605583f`](https://explorer-studio.genlayer.com/tx/0xeb2e4b5ea91722adf3db01319de6d42a0e11201136329d969d2345a0b605583f), `FINALIZED`/`MAJORITY_AGREE`/GenVM `SUCCESS`; read-back `pending` with reward deposited and no bond held.
+- `submit_evidence`: [`0x78b9139fe551b4dd2d2c4cb99b28851c68635ffa8f85e00dfd0857ff9f319090`](https://explorer-studio.genlayer.com/tx/0x78b9139fe551b4dd2d2c4cb99b28851c68635ffa8f85e00dfd0857ff9f319090), `FINALIZED`/`MAJORITY_AGREE`/GenVM `SUCCESS`; read-back `submitted` with the exact report hash and bond held.
+- `review`: [`0xd7f6d8c5297016cbf057b972d0d931b21c1db8191f5bba39c93d2d82c14c4558`](https://explorer-studio.genlayer.com/tx/0xd7f6d8c5297016cbf057b972d0d931b21c1db8191f5bba39c93d2d82c14c4558), `FINALIZED`/`MAJORITY_AGREE`/GenVM `SUCCESS`; verdict `approved`, confidence `97`, one review attempt. Stored rationale: “The specification requires changing the dashboard from PARALLAX DEMO v1 with PENDING to PARALLAX DEMO v2 with COMPLETE. The screenshots clearly show this exact before/after change, and the worker report matches the requested state.”
+- `settle`: [`0xf19e74d4a95fdc0792fa426984fa2b1c22b4d82435c0e418c6bec5b32233a489`](https://explorer-studio.genlayer.com/tx/0xf19e74d4a95fdc0792fa426984fa2b1c22b4d82435c0e418c6bec5b32233a489), `FINALIZED`/`MAJORITY_AGREE`/GenVM `SUCCESS`; outcome `approved`, sponsor payout `0`, worker payout `2000000000000` wei. Final read-back: `settled`, `reward_deposited=0`, `worker_bond_held=0`, `active_jobs=0`.
+
 The official GenLayer development and validator guidance is available at [skills.genlayer.com](https://skills.genlayer.com/).

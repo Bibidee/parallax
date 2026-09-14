@@ -19,6 +19,25 @@ GenVM `SUCCESS`.
 - Final `get_info()`: `job_count=1`, `active_jobs=0`, `total_reward_deposited=0`, `total_worker_bonds_held=0`, `total_refunded_to_sponsors=1000000000000`.
 - The available EVM receipt view exposes a successful non-removed log but does not decode symbolic event names/blob fields; runtime success is the live event-path confirmation.
 
+## Full Studionet judgment lifecycle
+
+This is separate from the event smoke job above and proves the complete
+multimodal path on the same source-matched deployment.
+
+- Job: `PARALLAX-FULL-LIFECYCLE-1789370871455`
+- Sponsor: `0xF7FD246351268835Df39B1E8047fbCc4135E2B47`; worker: `0xaE82EFfe54dCcfd170d9a08EeE128339A70347f7`
+- Reward/bond: `1000000000000` wei each; deadline `1789385271`
+- Baseline URL/hash: `https://raw.githubusercontent.com/Bibidee/parallax/1315fc5f63841d15e0c1bd8edc0ff613b5ebc738/fixtures/lifecycle/baseline.txt` / `0x6452b1ee3499903c4bd839abbed23eec8c513b65a3d0d4853803b0047945db58`
+- Target URL/hash: `https://raw.githubusercontent.com/Bibidee/parallax/1315fc5f63841d15e0c1bd8edc0ff613b5ebc738/fixtures/lifecycle/target.txt` / `0x0bb5e06101ce4c5b04bbc0e0efbe4abb47619122d11dd2ea27cfdc5ee699c305`
+- Before image URL/hash: `https://cdn.jsdelivr.net/gh/Bibidee/parallax@1315fc5f63841d15e0c1bd8edc0ff613b5ebc738/fixtures/lifecycle/before.png` / `0xe47c8a5350f2f0cc3c694f97fe434c73246244092761912c878fc45a7b4184a5`
+- After image URL/hash: `https://cdn.jsdelivr.net/gh/Bibidee/parallax@1315fc5f63841d15e0c1bd8edc0ff613b5ebc738/fixtures/lifecycle/after.png` / `0x01068fe46b24e05f1955e5f207345e9b8340cbf77743bfc1bfa8ef1b6a577176`
+- Report URL/hash: `https://raw.githubusercontent.com/Bibidee/parallax/1315fc5f63841d15e0c1bd8edc0ff613b5ebc738/fixtures/lifecycle/report.txt` / `0xff63e273e01241c834d3bb1d7e8dcc557d1f7be21827f9b8f49fdaebeabf75b6`
+- Create: [`0xeb2e4b5ea91722adf3db01319de6d42a0e11201136329d969d2345a0b605583f`](https://explorer-studio.genlayer.com/tx/0xeb2e4b5ea91722adf3db01319de6d42a0e11201136329d969d2345a0b605583f) — `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; state `pending`.
+- Submit: [`0x78b9139fe551b4dd2d2c4cb99b28851c68635ffa8f85e00dfd0857ff9f319090`](https://explorer-studio.genlayer.com/tx/0x78b9139fe551b4dd2d2c4cb99b28851c68635ffa8f85e00dfd0857ff9f319090) — `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; state `submitted`, bond held `1000000000000` wei.
+- Review: [`0xd7f6d8c5297016cbf057b972d0d931b21c1db8191f5bba39c93d2d82c14c4558`](https://explorer-studio.genlayer.com/tx/0xd7f6d8c5297016cbf057b972d0d931b21c1db8191f5bba39c93d2d82c14c4558) — `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; verdict `approved`, confidence `97`, one review attempt. The stored rationale states that the screenshots and worker report match the specified v1/PENDING → v2/COMPLETE change.
+- Settlement: [`0xf19e74d4a95fdc0792fa426984fa2b1c22b4d82435c0e418c6bec5b32233a489`](https://explorer-studio.genlayer.com/tx/0xf19e74d4a95fdc0792fa426984fa2b1c22b4d82435c0e418c6bec5b32233a489) — `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; outcome `approved`, sponsor `0`, worker `2000000000000` wei.
+- Final state: `settled`, `reward_deposited=0`, `worker_bond_held=0`, `active_jobs=0`, `total_reward_deposited=0`, `total_worker_bonds_held=0`.
+
 ## Historical superseded deployment
 
 Parallax v0.2.0 was previously deployed to Studionet at the address below. Its
@@ -48,10 +67,10 @@ this address for current evidence.
 - [x] `gen_getContractCode` source retrieved and compared byte-for-byte
 - [x] `get_info()` matches version and configuration
 - [x] live pending → cancelled smoke evidence recorded on the corrected deployment
+- [x] live create → submit → review → approved → settle lifecycle recorded on the corrected deployment
 
-The corrected deployment above is the current release candidate. A broader
-multimodal review/settlement flow remains optional evidence; the required
-event-topology create/cancel smoke path is finalized and successful.
+The corrected deployment above is the current release. The full multimodal
+judgment lifecycle is also finalized and successful.
 
 ## Economic safety checks
 
