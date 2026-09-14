@@ -76,6 +76,18 @@
       "ret": "null",
       "payable": true
     },
+    "expire_job": {
+      "params": [
+        [
+          "job_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
     "get_info": {
       "params": [],
       "kwparams": {},

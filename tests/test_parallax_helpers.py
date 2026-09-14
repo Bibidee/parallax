@@ -74,7 +74,7 @@ def test_normalized_hash_and_url_guards():
         else:
             assert False
     assert m.valid_url("https://public.example/item", "url")
-    for bad in ("http://public.example", "https://localhost/x", "https://127.0.0.1/x", "https://10.0.0.1/x", "https://[::1]/x", "https://user@public.example/x"):
+    for bad in ("http://public.example", "https://localhost/x", "https://127.0.0.1/x", "https://10.0.0.1/x", "https://172.016.0.1/x", "https://2130706433/x", "https://[::1]/x", "https://[fc00::1]/x", "https://user@public.example/x", "https://public.example\\@127.0.0.1/x"):
         try:
             m.valid_url(bad, "url")
         except Exception:
@@ -101,3 +101,10 @@ def test_manifest_like_serialization_is_deterministic():
     payload = json.dumps({"b": 2, "a": 1}, sort_keys=True, separators=(",", ":"))
     assert payload == '{"a":1,"b":2}'
     assert m.clean("\x00  a\n b  ") == "a b"
+
+
+def test_artifact_fault_classes_are_nonsemantic():
+    m = load_module()
+    assert m.technical_failure(m.FAIL_SPONSOR_ARTIFACT, "hash_mismatch")["kind"] == "technical"
+    assert m.technical_failure(m.FAIL_WORKER_ARTIFACT, "invalid_utf8")["fault_class"] == "worker_artifact"
+    assert m.equivalent_analysis(analysis(risk="yes"), analysis(spec_match="no", rationale="different semantic reason"))

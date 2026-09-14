@@ -1,12 +1,12 @@
-# Parallax v0.1.0
+# Parallax v0.2.0
 
-Parallax is a standalone GenLayer Intelligent Contract primitive for multimodal milestone escrow. A sponsor commits the exact text and image artifacts that define a before/after state, funds a reward in GEN, and designates a worker. The worker submits a hash-bound completion report and a small bond. GenLayer validators independently fetch the committed bytes, verify SHA-256 and UTF-8 integrity, render the before/after images, and semantically assess whether the requested state change is proven.
+Parallax is a standalone GenLayer Intelligent Contract primitive for multimodal milestone escrow. A sponsor commits exact text and image artifacts describing a before/after state, funds a reward in GEN, and designates a worker. The worker submits a hash-bound completion report and a bond. Validators independently fetch and hash every artifact; the exact verified image bytes are passed directly to a multimodal model, so the model never reviews a second URL fetch.
 
 ## Why GenLayer
 
-Ordinary contracts can hold GEN and compare hashes, but cannot independently interpret whether two photographs show the requested change or whether a report supports a specification. Parallax uses `run_nondet_unsafe` so multiple validators perform the observation themselves. Deterministic contract code alone derives the authorization outcome, enforces the designated worker, and settles escrow exactly once. No single model, trusted oracle, or frontend can authorize a payout.
+Ordinary contracts can hold GEN and compare hashes, but cannot independently interpret whether photographs show the requested change or whether a report supports a specification. `run_nondet_unsafe` lets multiple validators perform the observation themselves. Deterministic code derives the authorization outcome, enforces the designated worker, and settles escrow exactly once. Artifacts are hostile quoted data: embedded instructions are never followed.
 
-Artifacts are hostile quoted data: instructions inside them are never followed. Every fetched byte is bounded and hashed before semantic review. Any unavailable source, HTTP failure, mismatch, invalid UTF-8, malformed model result, or validator disagreement fails closed or remains retryable.
+Approval requires the complete safe tuple (`spec_match=yes`, `visual_change=yes`, `evidence_support=yes`, `evidence_quality=strong|adequate`, `risk=no`, confidence >= 75) from consensus. Semantic rejection is `blocked`; artifact, network, or model failures are non-punitive `retryable` outcomes. Malformed output never approves.
 
 ## Lifecycle
 
@@ -15,12 +15,13 @@ Artifacts are hostile quoted data: instructions inside them are never followed. 
 Settlement has a closed set of exits:
 
 - approved: worker receives reward plus bond;
-- blocked: sponsor receives reward plus bond;
-- retryable after the deadline: sponsor receives reward and the worker bond is refunded;
+- substantive semantic blocked: sponsor receives reward plus bond;
+- sponsor/worker artifact or infrastructure failure: retryable; after the deadline both owners are refunded;
+- retryable after deadline or exhausted attempts: permissionless `expire_job` refunds sponsor reward and worker bond;
 - sponsor cancellation before evidence: sponsor receives the reward;
-- worker withdrawal before final review: worker receives the bond.
+- worker withdrawal is forbidden while evidence is reviewable and is available only after retryable timeout/attempt exhaustion.
 
-Each payout zeros the corresponding ledger fields and persists state before emitting GEN. A second settlement therefore has no balance to release. The deadline also prevents an unresolved review from stranding funds forever.
+All payout paths zero both ledgers, persist state, update accounting, and only then emit GEN. A second settle/expire/withdraw has no balance to release. `MAX_ACTIVE_JOBS` bounds live storage pressure while finalized records remain auditable; `job_count` is informational, not a lifetime admission cap.
 
 ## Integration example
 

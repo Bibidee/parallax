@@ -1,12 +1,12 @@
-# v0.1.0
+# v0.2.0
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """Parallax: hash-bound multimodal milestone escrow for real-world state changes.
 
 Sponsors lock GEN against a committed specification. A designated worker submits
 text and before/after image evidence. GenLayer validators independently fetch
-the exact committed bytes, render the images, and semantically assess whether
-the evidence proves the requested change. Deterministic state and escrow rules
-derive the final payout; no model text can transfer funds by itself.
+the exact committed bytes and pass those verified raw image bytes directly to
+the multimodal model. Deterministic state and escrow rules derive the final
+payout; no model text can transfer funds by itself.
 """
 
 import hashlib
@@ -35,15 +35,22 @@ VERDICT_BLOCKED = "blocked"
 VERDICT_RETRYABLE = "retryable"
 
 MAX_JOBS = 512
+MAX_ACTIVE_JOBS = 512
 MAX_ID = 96
 MAX_TEXT = 500
 MAX_URL = 512
-MAX_ARTIFACT_BYTES = 12000
+MAX_TEXT_ARTIFACT_BYTES = 16000
+MAX_IMAGE_ARTIFACT_BYTES = 2_000_000
 MAX_REVIEW_ATTEMPTS = 8
 MIN_CONFIDENCE = 75
 MIN_DEADLINE = 60 * 60
 MAX_DEADLINE = 30 * 24 * 60 * 60
 BPS = 10000
+
+FAIL_SEMANTIC = "semantic"
+FAIL_SPONSOR_ARTIFACT = "sponsor_artifact"
+FAIL_WORKER_ARTIFACT = "worker_artifact"
+FAIL_INFRASTRUCTURE = "infrastructure"
 
 
 @gl.evm.contract_interface
@@ -86,6 +93,8 @@ class Job:
     settled_at: u256
     deadline_at: u256
     review_attempts: u256
+    failure_class: str
+    failure_reason: str
 
 
 class JobCreated(gl.Event):
@@ -166,8 +175,17 @@ def blocked_host(host: str) -> bool:
         pass
     if "." not in host:
         return True
-    if host.startswith(("127.", "10.", "192.168.", "169.254.")):
-        return True
+    numeric_parts = host.split(".")
+    if all(part.isdigit() for part in numeric_parts):
+        # Reject alternate dotted IPv4 spellings (leading zeros, wrong part
+        # count, or out-of-range octets) instead of allowing DNS ambiguity.
+        if len(numeric_parts) != 4 or any(str(int(part)) != part or int(part) > 255 for part in numeric_parts):
+            return True
+        first, second = int(numeric_parts[0]), int(numeric_parts[1])
+        if first in (0, 10, 127, 169, 192) or (first == 172 and 16 <= second <= 31):
+            return True
+        if first >= 224:
+            return True
     if host.startswith("172."):
         bits = host.split(".")
         if len(bits) > 1 and bits[1].isdigit() and 16 <= int(bits[1]) <= 31:
@@ -216,32 +234,40 @@ def hash_bytes(raw: bytes) -> str:
     return "0x" + hashlib.sha256(raw).hexdigest()
 
 
-def fetch_raw_verified(url_value: str, expected_hash: str) -> bytes:
+class ArtifactFailure(Exception):
+    def __init__(self, fault_class: str, reason: str):
+        super().__init__(reason)
+        self.fault_class = fault_class
+        self.reason = reason
+
+
+def fetch_raw_verified(url_value: str, expected_hash: str, fault_class: str,
+                       max_bytes: int) -> bytes:
     try:
         response = gl.nondet.web.get(url_value)
     except Exception:
-        raise RuntimeError("fetch_unavailable")
+        raise ArtifactFailure(FAIL_INFRASTRUCTURE, "fetch_unavailable")
     status = int(getattr(response, "status", getattr(response, "status_code", 0)))
     raw = getattr(response, "body", b"")
     if status == 429 or status >= 500:
-        raise RuntimeError("http_unavailable")
+        raise ArtifactFailure(FAIL_INFRASTRUCTURE, "http_unavailable")
     if status < 200 or status >= 300:
-        raise ValueError("bad_http_status")
+        raise ArtifactFailure(fault_class, "bad_http_status")
     if not raw:
-        raise ValueError("empty_response")
-    if len(raw) > MAX_ARTIFACT_BYTES:
-        raise ValueError("artifact_too_large")
+        raise ArtifactFailure(fault_class, "empty_response")
+    if len(raw) > max_bytes:
+        raise ArtifactFailure(fault_class, "artifact_too_large")
     if hash_bytes(raw) != expected_hash:
-        raise ValueError("hash_mismatch")
+        raise ArtifactFailure(fault_class, "hash_mismatch")
     return raw
 
 
-def fetch_text_verified(url_value: str, expected_hash: str) -> str:
-    raw = fetch_raw_verified(url_value, expected_hash)
+def fetch_text_verified(url_value: str, expected_hash: str, fault_class: str) -> str:
+    raw = fetch_raw_verified(url_value, expected_hash, fault_class, MAX_TEXT_ARTIFACT_BYTES)
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
-        raise ValueError("invalid_utf8")
+        raise ArtifactFailure(fault_class, "invalid_utf8")
 
 
 def strict_choice(value, allowed) -> str:
@@ -296,20 +322,23 @@ def derive_verdict(value) -> str:
 def equivalent_analysis(left, right) -> bool:
     if not valid_analysis(left) or not valid_analysis(right):
         return False
-    # Rationale and confidence are explanatory. Approval still requires the
-    # complete safe tuple in each observation, while blocked observations do
-    # not need identical rejection reasons because both outcomes are safe.
-    return derive_verdict(left) == derive_verdict(right)
+    left_verdict, right_verdict = derive_verdict(left), derive_verdict(right)
+    if left_verdict != right_verdict:
+        return False
+    # Approval is safe only when both complete tuples independently approve.
+    # For blocked outcomes, require the same fault class so a punitive worker
+    # settlement can never follow validator disagreement about attribution.
+    if left_verdict == VERDICT_BLOCKED:
+        return left.get("fault_class", FAIL_SEMANTIC) == right.get("fault_class", FAIL_SEMANTIC)
+    return True
 
 
 def retryable(reason: str) -> dict:
     return {"kind": VERDICT_RETRYABLE, "reason": reason}
 
 
-def blocked_observation(reason: str) -> dict:
-    return {"kind": "analysis", "result": {"spec_match": "unclear", "visual_change": "unclear",
-        "evidence_support": "no", "evidence_quality": "weak", "risk": "yes", "confidence": 0,
-        "rationale": clean(reason)[:MAX_TEXT] or "Artifact verification failed."}}
+def technical_failure(fault_class: str, reason: str) -> dict:
+    return {"kind": "technical", "fault_class": fault_class, "reason": clean(reason)[:MAX_TEXT]}
 
 
 def semantic_prompt(snapshot: dict, baseline: str, target: str, report: str) -> str:
@@ -327,22 +356,23 @@ QUOTED_UNTRUSTED_DATA={quoted}"""
 
 def observe(snapshot: dict) -> dict:
     try:
-        baseline = fetch_text_verified(snapshot["baseline_url"], snapshot["baseline_hash"])
-        target = fetch_text_verified(snapshot["target_url"], snapshot["target_hash"])
-        report = fetch_text_verified(snapshot["report_url"], snapshot["report_hash"])
-        fetch_raw_verified(snapshot["before_image_url"], snapshot["before_image_hash"])
-        fetch_raw_verified(snapshot["after_image_url"], snapshot["after_image_hash"])
-        before = gl.nondet.web.render(snapshot["before_image_url"], mode="screenshot")
-        after = gl.nondet.web.render(snapshot["after_image_url"], mode="screenshot")
-    except RuntimeError as exc:
-        return retryable(str(exc))
-    except Exception as exc:
-        return blocked_observation(str(exc))
+        baseline = fetch_text_verified(snapshot["baseline_url"], snapshot["baseline_hash"], FAIL_SPONSOR_ARTIFACT)
+        target = fetch_text_verified(snapshot["target_url"], snapshot["target_hash"], FAIL_SPONSOR_ARTIFACT)
+        report = fetch_text_verified(snapshot["report_url"], snapshot["report_hash"], FAIL_WORKER_ARTIFACT)
+        before = fetch_raw_verified(snapshot["before_image_url"], snapshot["before_image_hash"], FAIL_SPONSOR_ARTIFACT, MAX_IMAGE_ARTIFACT_BYTES)
+        after = fetch_raw_verified(snapshot["after_image_url"], snapshot["after_image_hash"], FAIL_WORKER_ARTIFACT, MAX_IMAGE_ARTIFACT_BYTES)
+    except ArtifactFailure as exc:
+        return technical_failure(exc.fault_class, exc.reason)
+    except Exception:
+        return technical_failure(FAIL_INFRASTRUCTURE, "observation_unavailable")
     try:
         raw = gl.nondet.exec_prompt(semantic_prompt(snapshot, baseline, target, report), response_format="json", images=[before, after])
     except Exception:
         return retryable("semantic_execution_unavailable")
     if not isinstance(raw, dict):
+        return retryable("malformed_model_output")
+    required = {"spec_match", "visual_change", "evidence_support", "evidence_quality", "risk", "confidence", "rationale"}
+    if set(raw.keys()) != required:
         return retryable("malformed_model_output")
     try:
         result = {
@@ -358,6 +388,7 @@ def observe(snapshot: dict) -> dict:
         return retryable("malformed_model_output")
     if not valid_analysis(result):
         return retryable("malformed_model_output")
+    result["fault_class"] = FAIL_SEMANTIC
     return {"kind": "analysis", "result": result}
 
 
@@ -370,6 +401,7 @@ def payout(recipient: Address, amount: int) -> None:
 class Parallax(gl.Contract):
     jobs: TreeMap[str, Job]
     job_count: u256
+    active_jobs: u256
     total_reward_deposited: u256
     total_worker_bonds_held: u256
     total_paid_to_workers: u256
@@ -378,6 +410,7 @@ class Parallax(gl.Contract):
     def __init__(self):
         self.jobs = TreeMap()
         self.job_count = u256(0)
+        self.active_jobs = u256(0)
         self.total_reward_deposited = u256(0)
         self.total_worker_bonds_held = u256(0)
         self.total_paid_to_workers = u256(0)
@@ -415,19 +448,22 @@ class Parallax(gl.Contract):
         after_image_hash = canonical_hash(after_image_hash, "after image hash")
         if len({host_of(baseline_url), host_of(target_url), host_of(before_image_url), host_of(after_image_url)}) < 2:
             raise gl.vm.UserError(f"{EXPECTED} Evidence must use at least two hosts")
-        if self.jobs.get(job_id) is not None or int(self.job_count) >= MAX_JOBS:
+        if self.jobs.get(job_id) is not None or int(self.active_jobs) >= MAX_ACTIVE_JOBS:
             raise gl.vm.UserError(f"{EXPECTED} Job id unavailable")
         now = now_timestamp()
         deadline = int(deadline_at)
         if int(gl.message.value) <= 0 or int(worker_bond) <= 0:
             raise gl.vm.UserError(f"{EXPECTED} Positive reward and bond required")
+        if before_image_hash == after_image_hash:
+            raise gl.vm.UserError(f"{EXPECTED} Before and after images must differ")
         if deadline < now + MIN_DEADLINE or deadline > now + MAX_DEADLINE:
             raise gl.vm.UserError(f"{EXPECTED} Invalid deadline")
         self.jobs[job_id] = Job(job_id, self._sender(), worker, specification, baseline_url, baseline_hash,
             target_url, target_hash, before_image_url, before_image_hash, after_image_url, after_image_hash,
             "", "", "", gl.message.value, worker_bond, u256(0), PENDING, "", u256(0), "", u256(now),
-            u256(0), u256(0), u256(0), u256(deadline), u256(0))
+            u256(0), u256(0), u256(0), u256(deadline), u256(0), "", "")
         self.job_count = u256(int(self.job_count) + 1)
+        self.active_jobs = u256(int(self.active_jobs) + 1)
         self.total_reward_deposited = u256(int(self.total_reward_deposited) + int(gl.message.value))
         JobCreated(job_id, self._sender(), worker, gl.message.value).emit()
 
@@ -437,7 +473,7 @@ class Parallax(gl.Contract):
         self._assert_worker(job)
         if job.status != PENDING:
             raise gl.vm.UserError(f"{EXPECTED} Job is not awaiting evidence")
-        if now_timestamp() > int(job.deadline_at):
+        if now_timestamp() >= int(job.deadline_at):
             raise gl.vm.UserError(f"{EXPECTED} Job deadline passed")
         report_url = valid_url(report_url, "report")
         report_hash = canonical_hash(report_hash, "report hash")
@@ -458,6 +494,8 @@ class Parallax(gl.Contract):
             raise gl.vm.UserError(f"{EXPECTED} Job is not reviewable")
         if int(job.review_attempts) >= MAX_REVIEW_ATTEMPTS:
             raise gl.vm.UserError(f"{EXPECTED} Review attempts exhausted")
+        if now_timestamp() >= int(job.deadline_at):
+            raise gl.vm.UserError(f"{EXPECTED} Review deadline passed")
         snapshot = {"specification": str(job.specification), "baseline_url": str(job.baseline_url),
             "baseline_hash": str(job.baseline_hash), "target_url": str(job.target_url), "target_hash": str(job.target_hash),
             "before_image_url": str(job.before_image_url), "before_image_hash": str(job.before_image_hash),
@@ -471,17 +509,24 @@ class Parallax(gl.Contract):
             own = observe(snapshot)
             if own.get("kind") == "analysis" and leader_result.calldata.get("kind") == "analysis":
                 return equivalent_analysis(leader_result.calldata.get("result"), own.get("result"))
-            return own == leader_result.calldata and own.get("kind") == RETRYABLE
+            if own.get("kind") == "technical" and leader_result.calldata.get("kind") == "technical":
+                return own.get("fault_class") == leader_result.calldata.get("fault_class")
+            return own == leader_result.calldata and own.get("kind") == VERDICT_RETRYABLE
         envelope = gl.vm.run_nondet_unsafe(leader, validator)
         job.review_attempts = u256(int(job.review_attempts) + 1)
         if not isinstance(envelope, dict):
             raise gl.vm.UserError(f"{RETRYABLE} Malformed consensus envelope")
-        if envelope.get("kind") == RETRYABLE:
+        if envelope.get("kind") == VERDICT_RETRYABLE:
             job.status, job.verdict, job.confidence, job.rationale = RETRYABLE_STATUS, VERDICT_RETRYABLE, u256(0), str(envelope.get("reason", "retryable"))
+            job.failure_class, job.failure_reason = FAIL_INFRASTRUCTURE, str(envelope.get("reason", "retryable"))
+        elif envelope.get("kind") == "technical":
+            job.status, job.verdict, job.confidence, job.rationale = RETRYABLE_STATUS, VERDICT_RETRYABLE, u256(0), str(envelope.get("reason", "technical failure"))
+            job.failure_class, job.failure_reason = str(envelope.get("fault_class", FAIL_INFRASTRUCTURE)), str(envelope.get("reason", "technical failure"))
         elif envelope.get("kind") == "analysis" and valid_analysis(envelope.get("result")):
             result = envelope["result"]
             job.verdict, job.status = derive_verdict(result), APPROVED if derive_verdict(result) == APPROVED else BLOCKED
             job.confidence, job.rationale = u256(int(result["confidence"])), clean(result["rationale"])
+            job.failure_class, job.failure_reason = FAIL_SEMANTIC, "semantic review"
             job.reviewed_at = u256(now_timestamp())
         else:
             raise gl.vm.UserError(f"{RETRYABLE} Invalid consensus result")
@@ -498,6 +543,7 @@ class Parallax(gl.Contract):
             raise gl.vm.UserError(f"{EXPECTED} No reward deposited")
         job.reward_deposited = u256(0)
         job.status = CANCELLED
+        self.active_jobs = u256(int(self.active_jobs) - 1)
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - amount)
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + amount)
         JobCancelled(job.id, job.sponsor).emit()
@@ -511,7 +557,7 @@ class Parallax(gl.Contract):
             return 0, reward + bond
         if job.status == BLOCKED:
             return reward + bond, 0
-        if job.status == RETRYABLE_STATUS and now_timestamp() > int(job.deadline_at):
+        if job.status == RETRYABLE_STATUS and now_timestamp() >= int(job.deadline_at):
             return reward, bond
         raise gl.vm.UserError(f"{EXPECTED} Job is not settleable")
 
@@ -521,6 +567,7 @@ class Parallax(gl.Contract):
         sponsor_amount, worker_amount = self._settlement_amounts(job)
         reward, bond = int(job.reward_deposited), int(job.worker_bond_held)
         job.reward_deposited, job.worker_bond_held, job.status, job.settled_at = u256(0), u256(0), SETTLED, u256(now_timestamp())
+        self.active_jobs = u256(int(self.active_jobs) - 1)
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - reward)
         self.total_worker_bonds_held = u256(int(self.total_worker_bonds_held) - bond)
         self.total_paid_to_workers = u256(int(self.total_paid_to_workers) + worker_amount)
@@ -533,16 +580,41 @@ class Parallax(gl.Contract):
     def withdraw_evidence(self, job_id: str) -> None:
         job = self._job(job_id)
         self._assert_worker(job)
-        if job.status not in (SUBMITTED, RETRYABLE_STATUS) or int(job.worker_bond_held) <= 0:
+        if (job.status != RETRYABLE_STATUS or int(job.worker_bond_held) <= 0 or
+                (now_timestamp() < int(job.deadline_at) and int(job.review_attempts) < MAX_REVIEW_ATTEMPTS)):
             raise gl.vm.UserError(f"{EXPECTED} Evidence cannot be withdrawn")
         bond, reward = int(job.worker_bond_held), int(job.reward_deposited)
         job.worker_bond_held, job.reward_deposited = u256(0), u256(0)
         job.status = CANCELLED
+        self.active_jobs = u256(int(self.active_jobs) - 1)
         self.total_worker_bonds_held = u256(int(self.total_worker_bonds_held) - bond)
         self.total_reward_deposited = u256(int(self.total_reward_deposited) - reward)
         self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + reward)
         self.total_paid_to_workers = u256(int(self.total_paid_to_workers) + bond)
         JobSettled(job.id, "worker_withdrawal", u256(reward), u256(bond)).emit()
+        payout(job.sponsor, reward)
+        payout(job.worker, bond)
+
+    @gl.public.write
+    def expire_job(self, job_id: str) -> None:
+        """Permissionless refund for unresolved submitted/retryable jobs."""
+        job = self._job(job_id)
+        if job.status not in (SUBMITTED, RETRYABLE_STATUS):
+            raise gl.vm.UserError(f"{EXPECTED} Job is not expirable")
+        if now_timestamp() < int(job.deadline_at) and int(job.review_attempts) < MAX_REVIEW_ATTEMPTS:
+            raise gl.vm.UserError(f"{EXPECTED} Job deadline not reached")
+        reward, bond = int(job.reward_deposited), int(job.worker_bond_held)
+        if reward <= 0 and bond <= 0:
+            raise gl.vm.UserError(f"{EXPECTED} Escrow already settled")
+        job.reward_deposited, job.worker_bond_held = u256(0), u256(0)
+        job.status, job.verdict, job.settled_at = SETTLED, VERDICT_RETRYABLE, u256(now_timestamp())
+        self.active_jobs = u256(int(self.active_jobs) - 1)
+        self.total_reward_deposited = u256(int(self.total_reward_deposited) - reward)
+        self.total_worker_bonds_held = u256(int(self.total_worker_bonds_held) - bond)
+        self.total_refunded_to_sponsors = u256(int(self.total_refunded_to_sponsors) + reward)
+        self.total_paid_to_workers = u256(int(self.total_paid_to_workers) + bond)
+        JobExpired(job.id).emit()
+        JobSettled(job.id, "expiry", u256(reward), u256(bond)).emit()
         payout(job.sponsor, reward)
         payout(job.worker, bond)
 
@@ -558,12 +630,15 @@ class Parallax(gl.Contract):
             "worker_bond_held": str(job.worker_bond_held), "status": str(job.status), "verdict": str(job.verdict),
             "confidence": str(job.confidence), "rationale": str(job.rationale), "created_at": int(job.created_at),
             "submitted_at": int(job.submitted_at), "reviewed_at": int(job.reviewed_at), "settled_at": int(job.settled_at),
-            "deadline_at": int(job.deadline_at), "review_attempts": int(job.review_attempts)}
+            "deadline_at": int(job.deadline_at), "review_attempts": int(job.review_attempts),
+            "failure_class": str(job.failure_class), "failure_reason": str(job.failure_reason)}
 
     @gl.public.view
     def get_info(self) -> dict:
-        return {"name": "Parallax", "version": "0.1.0", "max_jobs": MAX_JOBS,
-            "max_artifact_bytes": MAX_ARTIFACT_BYTES, "min_confidence": MIN_CONFIDENCE,
+        return {"name": "Parallax", "version": "0.2.0", "max_jobs": MAX_JOBS,
+            "max_active_jobs": MAX_ACTIVE_JOBS, "max_text_artifact_bytes": MAX_TEXT_ARTIFACT_BYTES,
+            "max_image_artifact_bytes": MAX_IMAGE_ARTIFACT_BYTES, "min_confidence": MIN_CONFIDENCE,
+            "job_count": str(self.job_count), "active_jobs": str(self.active_jobs),
             "states": "pending,submitted,approved,blocked,retryable,settled,cancelled",
             "total_reward_deposited": str(self.total_reward_deposited), "total_worker_bonds_held": str(self.total_worker_bonds_held),
             "total_paid_to_workers": str(self.total_paid_to_workers), "total_refunded_to_sponsors": str(self.total_refunded_to_sponsors)}

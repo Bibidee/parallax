@@ -4,9 +4,9 @@ Parallax combines a bounded multimodal observation with deterministic escrow. Th
 
 ## Observation and consensus
 
-Before nondeterministic execution, `review` copies all required job fields into an in-memory snapshot. The leader and each validator independently fetch baseline, target, report, and image bytes. Raw bytes are checked for HTTP status, size, exact SHA-256, and UTF-8 where text is required. Images are additionally rendered as screenshots and passed to the semantic model.
+Before nondeterministic execution, `review` copies all required job fields into an in-memory snapshot. The leader and each validator independently fetch baseline, target, report, and image bytes. Raw bytes are checked for HTTP status, role-specific size limits, exact SHA-256, and UTF-8 where text is required. The exact verified image bytes are passed directly to `exec_prompt(images=[...])`; there is no second URL render/fetch and therefore no image TOCTOU gap.
 
-The model returns a bounded object: `spec_match`, `visual_change`, `evidence_support`, `evidence_quality`, `risk`, `confidence`, and `rationale`. Equivalence compares the deterministic derived verdict: approval still requires the complete safe tuple and confidence at least 75 in each observation, while two valid blocked observations may differ in their blocking dimensions or rationale because neither can authorize a payout. Any disagreement that could change approval to blocked is rejected by consensus. Technical fetch and model failures are retryable; malformed outputs never approve.
+The model returns a bounded object: `spec_match`, `visual_change`, `evidence_support`, `evidence_quality`, `risk`, `confidence`, and `rationale`. Equivalence compares the deterministic derived verdict and, for blocked results, the bounded `fault_class`; rationale and confidence are explanatory. Approval still requires the complete safe tuple and confidence at least 75 in each observation. A disagreement that could change approval to blocked, or that changes payout-relevant fault attribution, is rejected by consensus. Technical/artifact and model failures are retryable and non-punitive; malformed outputs never approve.
 
 ## State machine
 
@@ -16,7 +16,7 @@ The model returns a bounded object: `spec_match`, `visual_change`, `evidence_sup
 
 `submitted -> retryable -> approved/blocked/retryable -> settled`
 
-`pending -> cancelled`; `submitted/retryable -> cancelled` through worker withdrawal. A sponsor cannot cancel after evidence is bonded. A deadline gives retryable jobs a deterministic sponsor-refund/worker-bond-refund route.
+`pending -> cancelled`; `submitted -> retryable`; `retryable -> approved/blocked/retryable`; `submitted/retryable -> settled` through permissionless `expire_job` at or after the deadline or exhausted attempts. Submission and review close at the exact deadline. A sponsor cannot cancel after evidence is bonded. Worker withdrawal is allowed only after a retryable timeout/attempt exhaustion, never while evidence is reviewable. A deadline gives every unresolved job a deterministic sponsor-reward/worker-bond refund route.
 
 ## Escrow safety
 
@@ -24,4 +24,8 @@ Every settlement reads the stored ledger, checks it is non-zero, sets both held 
 
 ## Limits and assumptions
 
-The contract supports textual artifacts and image URLs whose raw bytes can be fetched by GenLayer. HTTPS hosts are syntactically validated and obvious private, loopback, link-local, multicast, and reserved IP literals are rejected. External availability and validator consensus remain operational dependencies; uncertainty fails closed rather than fabricating approval.
+The contract supports textual artifacts and image URLs whose raw bytes can be fetched by GenLayer. Text artifacts are bounded at 16,000 bytes and image artifacts at 2,000,000 bytes. HTTPS hosts are syntactically validated and obvious private, loopback, link-local, multicast, and reserved IP literals (including ambiguous dotted forms) are rejected. External availability and validator consensus remain operational dependencies; uncertainty fails closed rather than fabricating approval.
+
+## Economic fault classes
+
+Substantive semantic rejection is the only punitive outcome: `blocked` settles reward and worker bond to the sponsor. Sponsor-provided artifact errors, worker-provided artifact integrity errors, HTTP/network failures, and model execution failures are recorded as retryable; expiry or retry exhaustion refunds the sponsor reward and worker bond to the worker. This prevents infrastructure controlled by the sponsor from silently slashing a worker. Every terminal path zeros both escrow ledgers before transfer and updates aggregate counters.
