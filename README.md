@@ -35,7 +35,24 @@ Another Intelligent Contract can use Parallax as an authorization gate by readin
 
 ## Release gate
 
-This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The corrected v0.2.0 source is now deployed to Studionet with byte-for-byte parity and a successful payable create/cancel smoke path. The earlier deployment remains historical evidence of the event-topic incompatibility.
+This repository intentionally contains exactly one deployable source: `contracts/parallax.py`. Run `python scripts/preflight.py` to parse it, run all tests, run GenVM lint, and generate the ABI schema. The hardened v0.2.0 source below is the current Studionet deployment with byte-for-byte parity and finalized multimodal escrow evidence. Earlier deployments remain historical evidence of the event-topology incompatibility.
+
+## Current hardened Studionet deployment
+
+- Contract: [`0x021b2ea7f5F907A6De41f3Ed468a29aFBAEB99D9`](https://explorer-studio.genlayer.com/address/0x021b2ea7f5F907A6De41f3Ed468a29aFBAEB99D9)
+- Deployment transaction: [`0xf6481c518f4e5b80e929c77d4f7335550d723d93b6728643be068e67c84b9329`](https://explorer-studio.genlayer.com/tx/0xf6481c518f4e5b80e929c77d4f7335550d723d93b6728643be068e67c84b9329)
+- Network/RPC: GenLayer Studionet (`https://studio.genlayer.com/api`); deployer `0xF7FD246351268835Df39B1E8047fbCc4135E2B47`
+- Source commit: `35acb34e7ca06a42da8f2c6ab01dda4bbef0d866`
+- Source SHA-256: `8dd30617d217c3d3c35a1caf234e7758bd37a106ad36b4934d5af20c65a5a70c` (31,968 bytes)
+- Deployment: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`
+- Source parity: `gen_getContractCode` decoded bytes match the repository byte-for-byte (`YES`)
+- Final `get_info()`: version `0.2.0`; `job_count=4`; `active_jobs=0`; `total_reward_deposited=0`; `total_worker_bonds_held=0`; `total_paid_to_workers=6000000000000`; `total_refunded_to_sponsors=2000000000000`.
+
+### Current live multimodal escrow evidence
+
+Job `PARALLAX-FINAL-HARDENED-1789428347502` completed the full path on this deployment. Create [`0x854b1331ad1a94adbc463c069c682fc591ac955be2bcf5b6301efab708d01855`](https://explorer-studio.genlayer.com/tx/0x854b1331ad1a94adbc463c069c682fc591ac955be2bcf5b6301efab708d01855), submit [`0x8881caa939fda7a8d0c680101d7b5f358301f6f5ad52596108c05d40357b74a0`](https://explorer-studio.genlayer.com/tx/0x8881caa939fda7a8d0c680101d7b5f358301f6f5ad52596108c05d40357b74a0), review [`0xed7536f1339c68524dd071ca78e4727124339f5fac026702110a2785061312ce`](https://explorer-studio.genlayer.com/tx/0xed7536f1339c68524dd071ca78e4727124339f5fac026702110a2785061312ce), and settle [`0xff419c6fcbb79d5b8db879d78e44def4635700920f7e2da36fa71cee4c870a09`](https://explorer-studio.genlayer.com/tx/0xff419c6fcbb79d5b8db879d78e44def4635700920f7e2da36fa71cee4c870a09). Each finalized with `MAJORITY_AGREE` and GenVM `SUCCESS`; review verdict was `approved` at confidence `100`, and final state is `settled` with both ledgers zero. The worker payout transfer is [`0xa6144f54574869640e20bd6d7bf7679c7ccc036d0264bad750352c987027e33d`](https://explorer-studio.genlayer.com/tx/0xa6144f54574869640e20bd6d7bf7679c7ccc036d0264bad750352c987027e33d).
+
+Job `PARALLAX-FINAL-HARDENED-1789428182687` provides a finalized fail-closed semantic path: review [`0x3e00e2793b8772952d58a9f4f03cf319903062148d2b703788054222544676fb`](https://explorer-studio.genlayer.com/tx/0x3e00e2793b8772952d58a9f4f03cf319903062148d2b703788054222544676fb) produced `blocked` (confidence `88`) and settlement left reward and bond ledgers at zero.
 
 ## Historical Studionet deployment evidence
 
@@ -47,7 +64,7 @@ This repository intentionally contains exactly one deployable source: `contracts
 - Deployment receipt: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `get_info()` returns Parallax `0.2.0` with zero active jobs and zero held ledgers.
 - Smoke-test transaction: [`0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85`](https://explorer-studio.genlayer.com/tx/0x570a406cea443dd148cedf8af3db335392355e711a3e6c969b386719ed89ab85). It finalized with `MAJORITY_AGREE`, but GenVM executions errored at `JobCreated.emit()` (`SystemError: 2: inval`); `PARALLAX-SMOKE-001` was not persisted and accounting remained zero. This is retained solely as historical evidence for the superseded deployment.
 
-## Corrected Studionet deployment
+## Historical superseded deployment (pre-consensus hardening)
 
 - Contract: [`0x27CdC3c266F9b8402Ac4723AA0c1A28D77C7B8a9`](https://explorer-studio.genlayer.com/address/0x27CdC3c266F9b8402Ac4723AA0c1A28D77C7B8a9)
 - Deployment transaction: [`0x267e6479907a5066c1e49da30dee2f9a7655d08b93775962042f78c4561d8481`](https://explorer-studio.genlayer.com/tx/0x267e6479907a5066c1e49da30dee2f9a7655d08b93775962042f78c4561d8481)
@@ -61,7 +78,7 @@ This repository intentionally contains exactly one deployable source: `contracts
 
 ### Full Studionet judgment lifecycle
 
-The corrected deployment also completed a real multimodal escrow lifecycle (distinct from the pending/cancel event smoke test):
+That historical corrected deployment also completed a real multimodal escrow lifecycle (distinct from the pending/cancel event smoke test):
 
 - Job `PARALLAX-FULL-LIFECYCLE-1789370871455`; sponsor `0xF7FD246351268835Df39B1e8047fbCc4135E2B47`; worker/designated payout recipient `0xaE82EFfe54dCcfd170d9a08EeE128339A70347f7`.
 - Specification: approve only when verified evidence shows the dashboard changed from `PARALLAX DEMO v1`/`PENDING` to `PARALLAX DEMO v2`/`COMPLETE`.
